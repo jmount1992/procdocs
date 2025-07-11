@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ProcDocs"
+version = "0.0.0"
+description = "A lightweight, structured, friendly framework for defining, validating, and rendering procedure-based documents."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+keywords = ["Serial", "Protocol"]
+authors = [
+  {email = "jmount1992@gmail.com"},
+  {name = "James Mount"}
+]
+maintainers = [
+  {name = "James Mount", email = "jmount1992@gmail.com"}
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest == 8.3.5",
+  "pytest-cov == 6.0.0",
+  "hypothesis == 6.129.*",
+  "sphinx == 5.0.0",
+  "sphinx-autodoc-typehints == 1.19.*",
+  "sphinx-rtd-theme == 1.1.*",
+  "sphinx-toolbox == 3.1.*",
+]
+
+[project.urls]
+Homepage = "https://jamesmount.tech/procdocs/"
+Documentation = "https://jamesmount.tech/procdocs/"
+Repository = "https://github.com/jmount1992/procdocs"
+Issues = "https://github.com/jmount1992/procdocs/issues"
+Changelog = "https://github.com/jmount1992/procdocs/blob/master/CHANGELOG.md"
