@@ -17,10 +17,9 @@ class FieldType(str, Enum):
 
 
 class FieldDescriptor:
-    def __init__(self, data: Dict[str, Any], idx: int=0):
+    def __init__(self, data: Dict[str, Any], idx: int = 0):
 
         self._data = data
-        
         self.idx = idx
         self.field: str = data.get("field")
         self.fieldtype: Optional[FieldType] = self._get_fieldtype(data.get("fieldtype", "string"), strict=False)
@@ -41,13 +40,13 @@ class FieldDescriptor:
         self._validate()
 
     def is_fieldtype(self, value: Union[str, FieldType, Tuple[Union[str, FieldType], ...]]) -> bool:
-        if isinstance(value, tuple):
+        if isinstance(value, (tuple, list)):
             return any(self.is_fieldtype(v) for v in value)
         try:
             return self.fieldtype == self._get_fieldtype(value)
         except ValueError:
             return False
-    
+
     def _get_fieldtype(self, value: Union[str, FieldType], strict: bool = True) -> Optional[FieldType]:
         if isinstance(value, FieldType):
             return value
@@ -60,24 +59,24 @@ class FieldDescriptor:
 
     def _validate(self) -> None:
         if not self.field:
-            raise ValueError(f"Field descriptor {self.idx} is invalid. The 'field' key was not set.")
-        
+            raise ValueError(f"Field descriptor {self.idx} is invalid. The 'field' key is not set.")
+
         if self.field in RESERVED_FIELDS:
             raise ValueError(f"Field descriptor {self.idx} is invalid. '{self.field}' is a reserved name and cannot be used.")
-        
+
         if not self.fieldtype:
             invalid = self._data.get("fieldtype")
             raise ValueError(f"Field descriptor {self.idx} is invalid. Invalid fieldtype '{invalid}'.")
-        
+
         if self.pattern:
             try:
                 re.compile(self.pattern)
             except re.error as e:
                 raise ValueError(f"Field descriptor {self.idx} is invalid. Invalid regex pattern '{e}'.")
-            
-        if self.fields and self.is_fieldtype((FieldType.LIST, FieldType.DICT)):
+
+        if self._data.get("fields") and not self.is_fieldtype((FieldType.LIST, FieldType.DICT)):
             raise ValueError(f"Field descriptor {self.idx} is invalid. Nested 'fields' only allowed for 'list' or 'dict' types ")
-        
+
         if self.required and not isinstance(self.required, bool):
             raise ValueError(f"Field descriptor {self.idx} is invalid. The 'required' must be boolean.")
 
