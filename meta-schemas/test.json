@@ -1,0 +1,87 @@
+{
+    "metadata": {
+        "filetype": "test",
+        "meta_schema_version": "0.1"
+    },
+
+    "structure": [
+        {
+            "field": "id",
+            "pattern": "^[A-Z]{2,4}-\\d{3}$"
+        },
+        {
+            "field": "title"
+        },
+        {
+            "field": "description",
+            "required": false
+        },
+        {
+            "field": "group",
+            "required": false,
+            "default": "other"
+        },
+        {
+            "field": "preconditions",
+            "fieldtype": "list",
+            "required": false,
+            "fields": [
+                {
+                    "field": "condition"
+                },
+                {
+                    "field": "associated-instruction",
+                    "fieldtype": "dict",
+                    "required": false,
+                    "fields": [
+                        { "field": "filepath" },
+                        { "field": "id" }
+                    ]
+                }
+            ]
+        },
+        {
+            "field": "test-steps",
+            "fieldtype": "list",
+            "fields": [
+                { "field": "step-number", "fieldtype": "number", "pattern": "^\\d+$" },
+                { "field": "action" },
+                {
+                    "field": "associated-instruction",
+                    "fieldtype": "dict",
+                    "required": false,
+                    "fields": [
+                        { "field": "filepath" },
+                        { "field": "id" }
+                    ]
+                }
+            ]
+        },
+        {
+            "field": "expected-result",
+            "fieldtype": "list",
+            "fields": [
+                { "field": "step-number", "fieldtype": "number" },
+                { "field": "result" },
+                {
+                    "field": "associated-instruction",
+                    "fieldtype": "dict",
+                    "required": false,
+                    "fields": [
+                        { "field": "filepath" },
+                        { "field": "id" }
+                    ]
+                },
+                {
+                    "field": "image",
+                    "fieldtype": "dict",
+                    "required": false,
+                    "fields": [
+                        { "field": "filepath" },
+                        { "field": "caption" }
+                    ]
+                }
+            ]
+        }
+    ]
+}
