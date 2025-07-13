@@ -69,7 +69,7 @@ class FieldDescriptor:
     def is_enum(self) -> bool:
         return self.is_fieldtype(FieldType.ENUM)
 
-    def is_fieldtype(self, value: Union[str, FieldType, Tuple[Union[str, FieldType]]]) -> bool:
+    def is_fieldtype(self, value: Union[str, FieldType, Tuple[Union[str, FieldType], ...]]) -> bool:
         if isinstance(value, (tuple, list)):
             return any(self.is_fieldtype(v) for v in value)
         return self.fieldtype == FieldType.parse(value)

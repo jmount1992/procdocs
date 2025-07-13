@@ -1,16 +1,17 @@
+#!/usr/bin/env python3
+
 import json
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Dict, Union, Iterable, Optional
 
 from .field_descriptor import FieldDescriptor
 
 
 class MetaSchema:
-    def __init__(self, structure: List[Dict], metadata: Dict):
-        self._metadata = metadata
-        self._structure: Dict[int, FieldDescriptor] = {idx: FieldDescriptor(fd, idx) for idx, fd in enumerate(structure)}
 
-        self._validate()
+    def __init__(self):
+        self._metadata: Optional[Dict] = None
+        self._structure: Optional[Dict[int, FieldDescriptor]] = None
 
     @property
     def metadata(self) -> Dict:
@@ -21,7 +22,18 @@ class MetaSchema:
         return self._structure
 
     @classmethod
-    def load_from_file(cls, filepath: Union[str, Path]) -> "MetaSchema":
+    def from_dict(cls, data: Dict, strict: bool = True) -> "MetaSchema":
+        ms = cls()
+        ms._metadata = data.get("metadata", {})
+        raw_structure = data.get("structure", [])
+        field_descriptors = [FieldDescriptor.from_dict(fielddata) for fielddata in raw_structure]
+        ms._structure = {idx: fd for idx, fd in enumerate(field_descriptors)}
+        if strict:
+            ms.validate()
+        return ms
+
+    @classmethod
+    def from_file(cls, filepath: Union[str, Path], strict: bool = True) -> "MetaSchema":
         if not isinstance(filepath, (str, Path)):
             raise TypeError(f"The filepath argument must be of type Path or str, not '{type(filepath)}'")
         filepath = Path(filepath)
@@ -32,18 +44,15 @@ class MetaSchema:
         with filepath.open('r') as f:
             data = json.load(f)
 
-        metadata = data.get("metadata", {})
-        structure = data.get("structure", [])
+        return cls.from_dict(data, strict)
 
-        return cls(structure=structure, metadata=metadata)
-
-    def _validate(self) -> None:
+    def validate(self) -> None:
         self._validate_metadata()
         self._validate_structure()
 
     def _validate_metadata(self) -> None:
         if not isinstance(self.metadata, dict):
-            raise ValueError("Metadata must be a dictionary")
+            raise ValueError("The 'metadata' must be a dictionary")
 
         required_keys = ("filetype", "meta_schema_version")
         for key in required_keys:
@@ -52,16 +61,20 @@ class MetaSchema:
 
     def _validate_structure(self) -> None:
         if not isinstance(self.structure, dict):
-            raise ValueError("'structure' must be a list")
+            raise ValueError("The 'structure' must be a dict.")
 
-        seen_fields = set()
-        for fd in self.structure.values():
+        self._validate_field_descriptors(self.structure.values())
+
+    def _validate_field_descriptors(self, descriptors: Iterable[FieldDescriptor]) -> None:
+        fieldnames = []
+        for fd in descriptors:
             if not isinstance(fd, FieldDescriptor):
                 raise TypeError("All structure entries must be FieldDescriptor instances")
 
-            if fd.field in seen_fields:
-                raise ValueError(f"Duplicate field name: '{fd.field}'")
+            fieldnames.append(fd.fieldname)
+            if fd.is_list() or fd.is_dict():
+                self._validate_field_descriptors(fd.fields)
 
-            seen_fields.add(fd.field)
-
-
+        if len(fieldnames) != len(set(fieldnames)):
+            duplicates = [name for name in set(fieldnames) if fieldnames.count(name) > 1]
+            raise ValueError(f"Duplicate field names found: {duplicates}")
