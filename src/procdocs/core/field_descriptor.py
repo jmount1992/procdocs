@@ -1,30 +1,13 @@
 #!/usr/bin/env python3
 
-from enum import Enum
 import hashlib
 import re
 from typing import Any, Dict, List, Optional, Union, Tuple
 
+from procdocs.core.field_type import FieldType
+
+
 RESERVED_FIELDS = {"metadata", "structure"}
-
-
-class FieldType(str, Enum):
-    STRING = "string"
-    NUMBER = "number"
-    BOOLEAN = "boolean"
-    LIST = "list"
-    DICT = "dict"
-    ENUM = "enum"
-    INVALID = "invalid"
-
-    @staticmethod
-    def parse(value: Union[str, "FieldType"]) -> "FieldType":
-        if isinstance(value, FieldType):
-            return value
-        try:
-            return FieldType(value)
-        except ValueError:
-            return FieldType.INVALID
 
 
 class FieldDescriptor:

@@ -1,7 +1,7 @@
 from typing import List, Optional
 from pathlib import Path
-from procdocs.engine.meta_schema import MetaSchema
-from procdocs.engine.field_descriptor import FieldDescriptor
+from procdocs.core.meta_schema import MetaSchema
+from procdocs.core.field_descriptor import FieldDescriptor
 
 
 def _build_comment(fd: FieldDescriptor) -> Optional[str]:

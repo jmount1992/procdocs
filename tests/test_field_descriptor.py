@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import pytest
-from procdocs.engine.field_descriptor import FieldDescriptor, FieldType, RESERVED_FIELDS
+from procdocs.core.field_descriptor import FieldDescriptor, FieldType, RESERVED_FIELDS
 
 
 # --- Field Name Validation --- #
