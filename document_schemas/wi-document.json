@@ -5,14 +5,14 @@
     },
 
     "structure": [
-        { "field": "id" },
-        { "field": "title" },
-        { "field": "description", "required": false },
+        { "fieldname": "id" },
+        { "fieldname": "title" },
+        { "fieldname": "description", "required": false },
         {
-            "field": "includes",
+            "fieldname": "includes",
             "fieldtype": "list",
             "fields": [
-                { "field": "fieldtype", "default": "string" }
+                { "fieldname": "filepath" }
             ]
         }
     ]

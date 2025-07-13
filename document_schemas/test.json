@@ -1,84 +1,85 @@
 {
     "metadata": {
-        "filetype": "test",
-        "meta_schema_version": "0.1"
+        "schema_name": "test",
+        "schema_version": "0.1",
+        "format_version": "0.0.1"
     },
 
     "structure": [
         {
-            "field": "id",
+            "fieldname": "id",
             "pattern": "^[A-Z]{2,4}-\\d{3}$"
         },
         {
-            "field": "title"
+            "fieldname": "title"
         },
         {
-            "field": "description",
+            "fieldname": "description",
             "required": false
         },
         {
-            "field": "group",
+            "fieldname": "group",
             "required": false,
             "default": "other"
         },
         {
-            "field": "preconditions",
+            "fieldname": "preconditions",
             "fieldtype": "list",
             "required": false,
             "fields": [
                 {
-                    "field": "condition"
+                    "fieldname": "condition"
                 },
                 {
-                    "field": "associated-instruction",
+                    "fieldname": "associated_instruction",
                     "fieldtype": "dict",
                     "required": false,
                     "fields": [
-                        { "field": "filepath" },
-                        { "field": "id" }
+                        { "fieldname": "filepath" },
+                        { "fieldname": "id" }
                     ]
                 }
             ]
         },
         {
-            "field": "test-steps",
+            "fieldname": "test_steps",
             "fieldtype": "list",
             "fields": [
-                { "field": "step-number", "fieldtype": "number", "pattern": "^\\d+$" },
-                { "field": "action" },
+                { "fieldname": "step_number", "fieldtype": "number", "pattern": "^\\d+$" },
+                { "fieldname": "action" },
                 {
-                    "field": "associated-instruction",
+                    "fieldname": "associated_instruction",
                     "fieldtype": "dict",
                     "required": false,
                     "fields": [
-                        { "field": "filepath" },
-                        { "field": "id" }
+                        { "fieldname": "filepath" },
+                        { "fieldname": "id" }
                     ]
                 }
             ]
         },
         {
-            "field": "expected-result",
+            "fieldname": "expected_result",
             "fieldtype": "list",
             "fields": [
-                { "field": "step-number", "fieldtype": "number" },
-                { "field": "result" },
+                { "fieldname": "step_number", "fieldtype": "number" },
+                { "fieldname": "result" },
                 {
-                    "field": "associated-instruction",
+                    "fieldname": "associated_instruction",
                     "fieldtype": "dict",
                     "required": false,
                     "fields": [
-                        { "field": "filepath" },
-                        { "field": "id" }
+                        { "fieldname": "filepath" },
+                        { "fieldname": "id" }
                     ]
                 },
                 {
-                    "field": "image",
+                    "fieldname": "image",
                     "fieldtype": "dict",
                     "required": false,
                     "fields": [
-                        { "field": "filepath" },
-                        { "field": "caption" }
+                        { "fieldname": "filepath" },
+                        { "fieldname": "caption" }
                     ]
                 }
             ]

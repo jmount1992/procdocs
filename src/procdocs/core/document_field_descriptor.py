@@ -5,14 +5,12 @@ import re
 from typing import Any, Dict, List, Optional, Union, Tuple
 
 from procdocs.core.field_type import FieldType
+from procdocs.core.utils import RESERVED_FIELDNAMES
 
 
-RESERVED_FIELDS = {"metadata", "structure"}
-
-
-class FieldDescriptor:
+class DocumentFieldDescriptor:
     """
-    Represents a single field descriptor in the meta-schema.
+    Represents a single field descriptor in a document schema.
 
     This class models the constraints, type, and structure of a single field
     within a schema and supports nested definitions for compound types.
@@ -20,7 +18,7 @@ class FieldDescriptor:
 
     def __init__(self):
         """
-        Initializes a new, empty FieldDescriptor. Fields must be populated via `from_dict()`.
+        Initializes a new, empty DocumentFieldDescriptor. Fields must be populated via `from_dict()`.
         """
         self._fieldname: Optional[str] = None
         self._raw_fieldtype: Optional[str] = None
@@ -30,7 +28,7 @@ class FieldDescriptor:
         self._options: Optional[List[str]] = None
         self._pattern: Optional[str] = None
         self._default: Optional[Any] = None
-        self._fields: List["FieldDescriptor"] = []
+        self._fields: List["DocumentFieldDescriptor"] = []
         self._uid: Optional[str] = None
 
     @property
@@ -69,8 +67,8 @@ class FieldDescriptor:
         return self._default
 
     @property
-    def fields(self) -> List["FieldDescriptor"]:
-        """Returns the list of nested field descriptors (for list/dict types)."""
+    def fields(self) -> List["DocumentFieldDescriptor"]:
+        """Returns the list of nested meta field descriptors (for list/dict types)."""
         return self._fields
 
     @property
@@ -122,9 +120,9 @@ class FieldDescriptor:
         self._validate_required()
 
     @classmethod
-    def from_dict(cls, data: Dict, level: int = 0, validate: bool = True) -> "FieldDescriptor":
+    def from_dict(cls, data: Dict, level: int = 0, validate: bool = True) -> "DocumentFieldDescriptor":
         """
-        Creates a FieldDescriptor from a dictionary.
+        Creates a DocumentFieldDescriptor from a dictionary.
 
         Args:
             data (Dict): A dictionary conforming to meta-schema field definition.
@@ -132,10 +130,10 @@ class FieldDescriptor:
             validate (bool): Whether to validate the field on load.
 
         Returns:
-            FieldDescriptor: Parsed and optionally validated descriptor.
+            DocumentFieldDescriptor: Parsed and optionally validated descriptor.
         """
         fd = cls()
-        fd._fieldname = data.get("field")
+        fd._fieldname = data.get("fieldname")
         fd._raw_fieldtype = data.get("fieldtype", "string")
         fd._fieldtype = FieldType.parse(fd._raw_fieldtype)
         fd._required = data.get("required", True)
@@ -155,13 +153,13 @@ class FieldDescriptor:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serializes this FieldDescriptor to a dictionary.
+        Serializes this DocumentFieldDescriptor to a dictionary.
 
         Returns:
             dict: A dictionary representation of the field descriptor.
         """
         return {
-            "field": self.fieldname,
+            "fieldname": self.fieldname,
             "fieldtype": self._raw_fieldtype,
             "required": self.required,
             "description": self.description,
@@ -190,8 +188,11 @@ class FieldDescriptor:
         if not self.fieldname:
             raise ValueError(f"Field descriptor {self.uid} is invalid. The 'fieldname' key is not set.")
 
-        if self.fieldname in RESERVED_FIELDS:
+        if self.fieldname in RESERVED_FIELDNAMES:
             raise ValueError(f"Field descriptor {self.uid} is invalid. '{self.fieldname}' is a reserved name and cannot be used.")
+        
+        if '-' in self.fieldname:
+            raise ValueError(f"Field descriptor {self.uid} is invalid. '{self.fieldname}' cannot contain '-'.")
 
     def _validate_fieldtype(self) -> None:
         """Checks the validity of the fieldtype and nested field logic."""

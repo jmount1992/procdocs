@@ -5,19 +5,19 @@
     },
 
     "structure": [
-        { "field": "id" },
-        { "field": "title" },
-        { "field": "description", "required": false },
+        { "fieldname": "id" },
+        { "fieldname": "title" },
+        { "fieldname": "description", "required": false },
         {
-            "field": "includes",
+            "fieldname": "includes",
             "fieldtype": "list",
             "fields": [
-                { "field": "group" },
+                { "fieldname": "group" },
                 {
-                    "field": "tests",
+                    "fieldname": "tests",
                     "fieldtype": "list",
                     "fields": [
-                        { "field": "fieldtype", "default": "string" }
+                        { "fieldname": "fieldtype", "default": "string" }
                     ]
                 }
             ]

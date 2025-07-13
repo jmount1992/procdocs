@@ -4,65 +4,100 @@ import json
 from pathlib import Path
 from typing import Dict, Union, Iterable, Optional
 
-from .field_descriptor import FieldDescriptor
+from procdocs.core.document_field_descriptor import DocumentFieldDescriptor
+from procdocs.core.metadata import CommonMetadata
 
 
-class MetaSchema:
+class DocumentSchemaMetadata(CommonMetadata):
     """
-    Represents a meta-schema that defines the structure of other documents.
+    Metadata class for JSON document schemas.
+    """
 
-    A meta-schema includes required metadata and a top-level list of field definitions.
+    class Meta:
+        REQUIRED = ("schema_name", "format_version")
+        MAPPING = {
+            "schema_name": "document_type",
+            "schema_version": "document_version"
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "DocumentSchemaMetadata":
+        md = cls()
+        md._load_from_dict(data, cls.Meta.MAPPING)
+        return md
+
+    def validate(self) -> None:
+        self._validate_required(self.Meta.REQUIRED, self.Meta.MAPPING)
+
+
+class DocumentSchema:
+    """
+    Represents a meta-schema that defines the structure of document instances.
+
+    A meta-schema includes required metadata and a structure defining the shape of a document instance.
     """
 
     def __init__(self):
         """
         Initializes an empty MetaSchema. Use `from_dict()` or `from_file()` to load data.
         """
-        self._metadata: Optional[Dict] = None
-        self._structure: Optional[Dict[int, FieldDescriptor]] = None
+        self._metadata: DocumentSchemaMetadata = DocumentSchemaMetadata()
+        self._structure: Optional[Dict[int, DocumentFieldDescriptor]] = None
 
     @property
-    def metadata(self) -> Dict:
+    def metadata(self) -> DocumentSchemaMetadata:
         """Returns the metadata dictionary for the schema."""
         return self._metadata
 
     @property
-    def structure(self) -> Dict[int, FieldDescriptor]:
-        """Returns the ordered structure of the schema as a dict of field descriptors."""
+    def structure(self) -> Dict[int, DocumentFieldDescriptor]:
+        """Returns the ordered structure of the schema as a dict of meta field descriptors."""
         return self._structure
 
+    @property
+    def schema_name(self) -> Optional[str]:
+        if self.metadata:
+            return self.metadata["schema_name"]
+        return None
+
+    @property
+    def version(self) -> Optional[str]:
+        if self.metadata:
+            return self.metadata["meta_schema_version"]
+        return None
+
     @classmethod
-    def from_dict(cls, data: Dict, strict: bool = True) -> "MetaSchema":
+    def from_dict(cls, data: Dict, strict: bool = True) -> "DocumentSchema":
         """
-        Loads a MetaSchema from a dictionary.
+        Loads a DocumentSchema from a dictionary.
 
         Args:
             data (Dict): The raw JSON-like structure.
             strict (bool): If True, validates the structure after loading.
 
         Returns:
-            MetaSchema: A fully parsed schema instance.
+            DocumentSchema: A fully parsed schema instance.
         """
         ms = cls()
-        ms._metadata = data.get("metadata", {})
+        ms._metadata = DocumentSchemaMetadata.from_dict(data.get("metadata", {}))
         raw_structure = data.get("structure", [])
-        field_descriptors = [FieldDescriptor.from_dict(fielddata) for fielddata in raw_structure]
+        field_descriptors = [DocumentFieldDescriptor.from_dict(fielddata) for fielddata in raw_structure]
         ms._structure = {idx: fd for idx, fd in enumerate(field_descriptors)}
         if strict:
             ms.validate()
         return ms
 
     @classmethod
-    def from_file(cls, filepath: Union[str, Path], strict: bool = True) -> "MetaSchema":
+    def from_file(cls, filepath: Union[str, Path], strict: bool = True) -> "DocumentSchema":
         """
-        Loads a MetaSchema from a JSON file.
+        Loads a DocumentSchema from a JSON file.
 
         Args:
             filepath (str or Path): Path to a schema JSON file.
             strict (bool): If True, validates after loading.
 
         Returns:
-            MetaSchema: Loaded schema.
+            DocumentSchema: Loaded schema.
 
         Raises:
             FileNotFoundError: If the file does not exist.
@@ -86,7 +121,7 @@ class MetaSchema:
         - Metadata section must contain required keys.
         - Structure must be well-formed and contain no duplicate field names.
         """
-        self._validate_metadata()
+        self.metadata.validate()
         self._validate_structure()
 
     def _validate_metadata(self) -> None:
@@ -94,7 +129,7 @@ class MetaSchema:
         if not isinstance(self.metadata, dict):
             raise ValueError("The 'metadata' must be a dictionary")
 
-        required_keys = ("filetype", "meta_schema_version")
+        required_keys = ("schema_name", "meta_schema_version")
         for key in required_keys:
             if key not in self.metadata:
                 raise ValueError(f"Metadata must contain '{key}'")
@@ -106,12 +141,12 @@ class MetaSchema:
 
         self._validate_field_descriptors(self.structure.values())
 
-    def _validate_field_descriptors(self, descriptors: Iterable[FieldDescriptor]) -> None:
+    def _validate_field_descriptors(self, descriptors: Iterable[DocumentFieldDescriptor]) -> None:
         """
-        Recursively validates a collection of FieldDescriptors.
+        Recursively validates a collection of DocumentFieldDescriptors.
 
         Args:
-            descriptors: Iterable of FieldDescriptor instances.
+            descriptors: Iterable of DocumentFieldDescriptor instances.
 
         Raises:
             ValueError: If duplicate fieldnames are found.
@@ -119,8 +154,8 @@ class MetaSchema:
         """
         fieldnames = []
         for fd in descriptors:
-            if not isinstance(fd, FieldDescriptor):
-                raise TypeError("All structure entries must be FieldDescriptor instances")
+            if not isinstance(fd, DocumentFieldDescriptor):
+                raise TypeError("All structure entries must be DocumentFieldDescriptor instances")
 
             fieldnames.append(fd.fieldname)
             if fd.is_list() or fd.is_dict():

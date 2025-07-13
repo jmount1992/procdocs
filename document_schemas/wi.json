@@ -1,0 +1,43 @@
+{
+    "metadata": {
+        "filetype": "wi",
+        "meta_schema_version": "0.1"
+    },
+
+    "structure": [
+        { "fieldname": "id",
+          "description": "Some description",
+          "default": "blah"
+        },
+        { "fieldname": "title" , "fieldtype": "enum", "options": ["option 1", "option 2"]},
+        { "fieldname": "description", "required": false },
+        {
+            "fieldname": "steps",
+            "fieldtype": "list",
+            "fields": [
+                { "fieldname": "step-number", "fieldtype": "number" },
+                { "fieldname": "step" },
+                { "fieldname": "code", "required": false },
+                { "fieldname": "note", "required": false },
+                {
+                    "fieldname": "image",
+                    "fieldtype": "dict",
+                    "required": false,
+                    "fields": [
+                        { "fieldname": "filepath" },
+                        { "fieldname": "caption", "description": "image caption goes here" }
+                    ]
+                },
+                {
+                    "fieldname": "references",
+                    "fieldtype": "list",
+                    "required": false,
+                    "fields": [
+                        { "fieldname": "title" },
+                        { "fieldname": "url" }
+                    ]
+                }
+            ]
+        }
+    ]
+}
