@@ -4,15 +4,26 @@
 
 Welcome to ProcDocs Documentation!
 ====================================================
+ProcDocs is a lightweight framework for authoring, validating, and rendering structured documents such as test procedures and work instructions. 
+It separates document structure (schema), content (document), and presentation (formatting) to support modularity, reuse, and robust validation. 
+Ideal for teams building high-integrity systems, ProcDocs brings clarity and consistency to your manual documentation and certification workflows.
+
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
-   meta_schema.rst
-   field_descriptor.rst
-   field_type.rst
-   meta_schema_specification.rst
+   guides/introduction.rst
+   guides/getting_started.rst
+   guides/schema_specification.rst
+   guides/document_specification.rst
+
+   api/schema.rst
+   api/field_descriptor.rst
+   api/field_type.rst
+
+.. tooling_reference.rst
+.. design_philosophy.rst
 
 Indices and tables
 ==================
