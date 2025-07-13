@@ -8,7 +8,7 @@ from procdocs.core.field_type import FieldType
 from procdocs.core.utils import RESERVED_FIELDNAMES
 
 
-class DocumentFieldDescriptor:
+class FieldDescriptor:
     """
     Represents a single field descriptor in a document schema.
 
@@ -18,7 +18,7 @@ class DocumentFieldDescriptor:
 
     def __init__(self):
         """
-        Initializes a new, empty DocumentFieldDescriptor. Fields must be populated via `from_dict()`.
+        Initializes a new, empty FieldDescriptor. Fields must be populated via `from_dict()`.
         """
         self._fieldname: Optional[str] = None
         self._raw_fieldtype: Optional[str] = None
@@ -28,7 +28,7 @@ class DocumentFieldDescriptor:
         self._options: Optional[List[str]] = None
         self._pattern: Optional[str] = None
         self._default: Optional[Any] = None
-        self._fields: List["DocumentFieldDescriptor"] = []
+        self._fields: List["FieldDescriptor"] = []
         self._uid: Optional[str] = None
 
     @property
@@ -67,7 +67,7 @@ class DocumentFieldDescriptor:
         return self._default
 
     @property
-    def fields(self) -> List["DocumentFieldDescriptor"]:
+    def fields(self) -> List["FieldDescriptor"]:
         """Returns the list of nested meta field descriptors (for list/dict types)."""
         return self._fields
 
@@ -120,9 +120,9 @@ class DocumentFieldDescriptor:
         self._validate_required()
 
     @classmethod
-    def from_dict(cls, data: Dict, level: int = 0, validate: bool = True) -> "DocumentFieldDescriptor":
+    def from_dict(cls, data: Dict, level: int = 0, validate: bool = True) -> "FieldDescriptor":
         """
-        Creates a DocumentFieldDescriptor from a dictionary.
+        Creates a FieldDescriptor from a dictionary.
 
         Args:
             data (Dict): A dictionary conforming to meta-schema field definition.
@@ -130,7 +130,7 @@ class DocumentFieldDescriptor:
             validate (bool): Whether to validate the field on load.
 
         Returns:
-            DocumentFieldDescriptor: Parsed and optionally validated descriptor.
+            FieldDescriptor: Parsed and optionally validated descriptor.
         """
         fd = cls()
         fd._fieldname = data.get("fieldname")
@@ -153,7 +153,7 @@ class DocumentFieldDescriptor:
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Serializes this DocumentFieldDescriptor to a dictionary.
+        Serializes this FieldDescriptor to a dictionary.
 
         Returns:
             dict: A dictionary representation of the field descriptor.

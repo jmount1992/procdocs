@@ -3,25 +3,25 @@
 import pytest
 
 from procdocs.core.utils import RESERVED_FIELDNAMES
-from procdocs.core.document_field_descriptor import DocumentFieldDescriptor, FieldType
+from procdocs.core.field_descriptor import FieldDescriptor, FieldType
 
 
 # --- Field Name Validation --- #
 
 def test_valid_fieldname():
-    desc = DocumentFieldDescriptor.from_dict({"fieldname": "name"})
+    desc = FieldDescriptor.from_dict({"fieldname": "name"})
     assert desc.fieldname == "name"
 
 
 @pytest.mark.parametrize("fieldname", list(RESERVED_FIELDNAMES))
 def test_reserved_fieldname_raises(fieldname):
     with pytest.raises(ValueError, match="is a reserved name"):
-        DocumentFieldDescriptor.from_dict({"fieldname": fieldname, "fieldtype": "string"})
+        FieldDescriptor.from_dict({"fieldname": fieldname, "fieldtype": "string"})
 
 
 def test_unset_fieldname_raises():
     with pytest.raises(ValueError, match="'fieldname' key is not set"):
-        DocumentFieldDescriptor.from_dict({})
+        FieldDescriptor.from_dict({})
 
 
 # --- FieldType Handling --- #
@@ -36,7 +36,7 @@ def test_unset_fieldname_raises():
 ])
 def test_valid_fieldtypes_str(ft_str, ft_enum, extra):
     data = {"fieldname": "name", "fieldtype": ft_str, **extra}
-    desc = DocumentFieldDescriptor.from_dict(data)
+    desc = FieldDescriptor.from_dict(data)
     assert isinstance(desc.fieldtype, FieldType)
     assert desc.fieldtype == ft_enum
 
@@ -51,24 +51,24 @@ def test_valid_fieldtypes_str(ft_str, ft_enum, extra):
 ])
 def test_valid_fieldtypes_enum(ft_enum, extra):
     data = {"fieldname": "name", "fieldtype": ft_enum, **extra}
-    desc = DocumentFieldDescriptor.from_dict(data)
+    desc = FieldDescriptor.from_dict(data)
     assert desc.fieldtype == ft_enum
 
 
 def test_invalid_fieldtype_is_rejected():
     with pytest.raises(ValueError, match="Invalid fieldtype 'blorp'"):
-        DocumentFieldDescriptor.from_dict({"fieldname": "name", "fieldtype": "blorp"})
+        FieldDescriptor.from_dict({"fieldname": "name", "fieldtype": "blorp"})
 
 
 def test_fieldtype_defaults_to_string_if_not_provided():
-    desc = DocumentFieldDescriptor.from_dict({"fieldname": "undecided"})
+    desc = FieldDescriptor.from_dict({"fieldname": "undecided"})
     assert desc.fieldtype == FieldType.STRING
 
 
 # --- Required, Default, Options, Description --- #
 
 def test_default_and_description_and_options_are_stored():
-    desc = DocumentFieldDescriptor.from_dict({
+    desc = FieldDescriptor.from_dict({
         "fieldname": "sensor",
         "fieldtype": "string",
         "default": "imu",
@@ -82,7 +82,7 @@ def test_default_and_description_and_options_are_stored():
 
 @pytest.mark.parametrize("required", [True, False])
 def test_required_field_parsing(required):
-    desc = DocumentFieldDescriptor.from_dict({
+    desc = FieldDescriptor.from_dict({
         "fieldname": "active",
         "fieldtype": "boolean",
         "required": required
@@ -92,13 +92,13 @@ def test_required_field_parsing(required):
 
 def test_required_field_invalid_type():
     with pytest.raises(ValueError, match="must be boolean"):
-        DocumentFieldDescriptor.from_dict({"fieldname": "active", "fieldtype": "boolean", "required": "yes"})
+        FieldDescriptor.from_dict({"fieldname": "active", "fieldtype": "boolean", "required": "yes"})
 
 
 # --- Regex Pattern Validation --- #
 
 def test_valid_regex_pattern_is_accepted():
-    desc = DocumentFieldDescriptor.from_dict({
+    desc = FieldDescriptor.from_dict({
         "fieldname": "serial",
         "fieldtype": "string",
         "pattern": r"^[A-Z]{3}-\d{4}$"
@@ -108,7 +108,7 @@ def test_valid_regex_pattern_is_accepted():
 
 def test_invalid_regex_pattern_raises():
     with pytest.raises(ValueError, match=r"Invalid regex pattern '.*unterminated character set.*'"):
-        DocumentFieldDescriptor.from_dict({
+        FieldDescriptor.from_dict({
             "fieldname": "broken",
             "fieldtype": "string",
             "pattern": "[a-z"
@@ -118,7 +118,7 @@ def test_invalid_regex_pattern_raises():
 # --- Nested Fields Validation --- #
 
 def test_list_with_nested_fields():
-    desc = DocumentFieldDescriptor.from_dict({
+    desc = FieldDescriptor.from_dict({
         "fieldname": "items",
         "fieldtype": "list",
         "fields": [
@@ -132,7 +132,7 @@ def test_list_with_nested_fields():
 
 
 def test_dict_with_nested_fields():
-    desc = DocumentFieldDescriptor.from_dict({
+    desc = FieldDescriptor.from_dict({
         "fieldname": "params",
         "fieldtype": "dict",
         "fields": [
@@ -148,7 +148,7 @@ def test_dict_with_nested_fields():
 @pytest.mark.parametrize("ftype", ["string", "number", "boolean", "enum"])
 def test_scalar_fieldtypes_reject_nested_fields(ftype):
     with pytest.raises(ValueError, match="Nested 'fields' only allowed for 'list' or 'dict' types"):
-        DocumentFieldDescriptor.from_dict({
+        FieldDescriptor.from_dict({
             "fieldname": "bad_scalar",
             "fieldtype": ftype,
             "fields": [{"fieldname": "oops", "fieldtype": "string"}]
@@ -157,7 +157,7 @@ def test_scalar_fieldtypes_reject_nested_fields(ftype):
 
 def test_enum_field_requires_options():
     with pytest.raises(ValueError, match="ENUM fieldtype must define 'options'"):
-        DocumentFieldDescriptor.from_dict({
+        FieldDescriptor.from_dict({
             "fieldname": "mode",
             "fieldtype": "enum"
         })
@@ -174,7 +174,7 @@ def test_enum_field_requires_options():
     ("enum", FieldType.ENUM, {"options": ["A", "B"]}),
 ])
 def test_is_fieldtype(value, expected, extra):
-    desc = DocumentFieldDescriptor.from_dict({"fieldname": "name", "fieldtype": value, **extra})
+    desc = FieldDescriptor.from_dict({"fieldname": "name", "fieldtype": value, **extra})
     assert desc.is_fieldtype(expected) is True
     assert desc.is_fieldtype(expected.value) is True
     assert desc.is_fieldtype([expected]) is True
@@ -185,7 +185,7 @@ def test_is_fieldtype(value, expected, extra):
 
 
 def test_is_fieldtype_with_multiple_values():
-    desc = DocumentFieldDescriptor.from_dict({"fieldname": "setting", "fieldtype": "enum", "options": ["A", "B"]})
+    desc = FieldDescriptor.from_dict({"fieldname": "setting", "fieldtype": "enum", "options": ["A", "B"]})
     assert desc.is_fieldtype(("enum", "dict")) is True
     assert desc.is_fieldtype(["number", "list"]) is False
 
@@ -193,18 +193,18 @@ def test_is_fieldtype_with_multiple_values():
 # --- UID Generation --- #
 
 def test_uid_is_deterministic_and_unique_by_field_and_level():
-    a = DocumentFieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number"})
-    b = DocumentFieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number"})
+    a = FieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number"})
+    b = FieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number"})
     assert a.uid == b.uid  # same level, same name
 
-    c = DocumentFieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number"}, level=1)
+    c = FieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number"}, level=1)
     assert c.uid != a.uid  # different level
 
 
 # --- __repr__() Behavior --- #
 
 def test_repr_outputs_useful_info():
-    desc = DocumentFieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number", "default": 42})
+    desc = FieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number", "default": 42})
     rep = repr(desc)
     assert "depth" in rep
     assert "FieldType.NUMBER" in rep

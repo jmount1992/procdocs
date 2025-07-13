@@ -1,41 +1,20 @@
 #!/usr/bin/env python3
 
-from typing import Optional, Dict, List
+from typing import Optional, List, Dict, Any
 
-from procdocs.core.utils import is_strict_semver, is_valid_version
+from procdocs.core.utils import is_strict_semver
 
 
-class CommonMetadata:
+class BaseMetadata:
     """
-    Represents shared metadata fields between meta-schemas and document instances.
-    Includes fields for document/document_type, version, and format compatibility.
+    Base class for document and schema metadata.
+    Stores document type, version, and format version, with validation.
+    Additionally stores user-defined metadata information as attributes.
     """
-
-    # __slots__ = ("_document_type", "_document_version", "_format_version")
 
     def __init__(self) -> None:
-        self._document_type: Optional[str] = None
-        self._document_version: Optional[str] = None
         self._format_version: Optional[str] = None
-        self._user_defined: List[str] = []
-
-    @property
-    def document_type(self) -> Optional[str]:
-        return self._document_type
-
-    @document_type.setter
-    def document_type(self, value: Optional[str]) -> None:
-        self._document_type = value
-
-    @property
-    def document_version(self) -> Optional[str]:
-        return self._document_version
-
-    @document_version.setter
-    def document_version(self, value: Optional[str]) -> None:
-        if value is not None and not is_valid_version(value):
-            raise ValueError(f"The supplied document version '{value}' is invalid.")
-        self._document_version = value
+        self._user_defined: Dict[str, Any] = {}
 
     @property
     def format_version(self) -> Optional[str]:
@@ -44,27 +23,46 @@ class CommonMetadata:
     @format_version.setter
     def format_version(self, value: str) -> None:
         if not is_strict_semver(value):
-            raise ValueError(f"The supplied ProcDocs format version '{value}' is invalid.")
+            raise ValueError(f"Invalid format version: '{value}'")
         self._format_version = value
 
-    def to_dict(self) -> Dict:
-        data = {
-            "document_type": self.document_type,
-            "document_version": self.document_version,
+    def to_dict(self) -> Dict[str, str]:
+        base = {
             "format_version": self.format_version,
         }
-        return data
+        for key in self._user_defined:
+            base[key] = getattr(self, key)
+        return base
 
-    def _load_from_dict(self, data: Dict, mapping: Dict[str, str] = None) -> None:
+    @classmethod
+    def from_dict(cls, data: Dict) -> "BaseMetadata":
+        """
+        Create a metadata instance from a dict with optional key mapping.
+        """
+        obj = cls()
         for key, val in data.items():
-            key = str(key).replace('-', '_')
-            attr = mapping.get(key, key)
-            if not hasattr(self, attr):
-                self._user_defined.append(attr)
-            setattr(self, attr, val)
+            norm_key = key.replace('-', '_')
+            if hasattr(obj, norm_key):
+                setattr(obj, norm_key, val)
+            else:
+                obj._add_user_field(norm_key, val)
+        return obj
 
-    def _validate_required(self, required: tuple[str], mapping: Dict[str, str]) -> None:
-        for key in required:
-            attr = mapping.get(key, key)
+    def validate(self) -> None:
+        """
+        Raise an error if any required field is missing.
+        """
+        for attr in self._required():
             if getattr(self, attr, None) is None:
-                raise ValueError(f"Missing required metadata field: '{key}'")
+                raise ValueError(f"Missing required metadata field: '{attr}'")
+
+    def _add_user_field(self, key: str, data: Any) -> None:
+        self._user_defined[key] = data
+
+    def _required(self) -> List:
+        raise NotImplementedError("Must be implemented by the derived class")
+
+    def __getattr__(self, name: str) -> Any:
+        if name in self._user_defined:
+            return self._user_defined[name]
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")

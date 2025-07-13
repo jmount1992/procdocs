@@ -4,30 +4,47 @@ import json
 from pathlib import Path
 from typing import Dict, Union, Iterable, Optional
 
-from procdocs.core.document_field_descriptor import DocumentFieldDescriptor
-from procdocs.core.metadata import CommonMetadata
+from procdocs.core.field_descriptor import FieldDescriptor
+from procdocs.core.metadata import BaseMetadata
+from procdocs.core.utils import is_valid_version
 
 
-class DocumentSchemaMetadata(CommonMetadata):
+class DocumentSchemaMetadata(BaseMetadata):
     """
     Metadata class for JSON document schemas.
     """
 
-    class Meta:
-        REQUIRED = ("schema_name", "format_version")
-        MAPPING = {
-            "schema_name": "document_type",
-            "schema_version": "document_version"
-        }
+    def __init__(self):
+        super().__init__()
+        self._schema_name: Optional[str] = None
+        self._schema_version: Optional[str] = None
 
-    @classmethod
-    def from_dict(cls, data: Dict) -> "DocumentSchemaMetadata":
-        md = cls()
-        md._load_from_dict(data, cls.Meta.MAPPING)
-        return md
+    @property
+    def schema_name(self) -> Optional[str]:
+        return self._schema_name
 
-    def validate(self) -> None:
-        self._validate_required(self.Meta.REQUIRED, self.Meta.MAPPING)
+    @schema_name.setter
+    def schema_name(self, value: Optional[str]) -> None:
+        self._schema_name = value
+
+    @property
+    def schema_version(self) -> Optional[str]:
+        return self._schema_version
+
+    @schema_version.setter
+    def schema_version(self, value: Optional[str]) -> None:
+        if value is not None and not is_valid_version(value):
+            raise ValueError(f"Invalid schema version: '{value}'")
+        self._schema_version = value
+
+    def to_dict(self) -> Dict[str, str]:
+        data = super().to_dict()
+        data["schema_name"] = self.schema_name
+        data["schema_version"] = self.schema_version
+        return data
+
+    def _required(self):
+        return ("schema_name", "format_version")
 
 
 class DocumentSchema:
@@ -42,7 +59,7 @@ class DocumentSchema:
         Initializes an empty MetaSchema. Use `from_dict()` or `from_file()` to load data.
         """
         self._metadata: DocumentSchemaMetadata = DocumentSchemaMetadata()
-        self._structure: Optional[Dict[int, DocumentFieldDescriptor]] = None
+        self._structure: Optional[Dict[int, FieldDescriptor]] = None
 
     @property
     def metadata(self) -> DocumentSchemaMetadata:
@@ -50,7 +67,7 @@ class DocumentSchema:
         return self._metadata
 
     @property
-    def structure(self) -> Dict[int, DocumentFieldDescriptor]:
+    def structure(self) -> Dict[int, FieldDescriptor]:
         """Returns the ordered structure of the schema as a dict of meta field descriptors."""
         return self._structure
 
@@ -81,7 +98,7 @@ class DocumentSchema:
         ms = cls()
         ms._metadata = DocumentSchemaMetadata.from_dict(data.get("metadata", {}))
         raw_structure = data.get("structure", [])
-        field_descriptors = [DocumentFieldDescriptor.from_dict(fielddata) for fielddata in raw_structure]
+        field_descriptors = [FieldDescriptor.from_dict(fielddata) for fielddata in raw_structure]
         ms._structure = {idx: fd for idx, fd in enumerate(field_descriptors)}
         if strict:
             ms.validate()
@@ -141,12 +158,12 @@ class DocumentSchema:
 
         self._validate_field_descriptors(self.structure.values())
 
-    def _validate_field_descriptors(self, descriptors: Iterable[DocumentFieldDescriptor]) -> None:
+    def _validate_field_descriptors(self, descriptors: Iterable[FieldDescriptor]) -> None:
         """
-        Recursively validates a collection of DocumentFieldDescriptors.
+        Recursively validates a collection of FieldDescriptors.
 
         Args:
-            descriptors: Iterable of DocumentFieldDescriptor instances.
+            descriptors: Iterable of FieldDescriptor instances.
 
         Raises:
             ValueError: If duplicate fieldnames are found.
@@ -154,8 +171,8 @@ class DocumentSchema:
         """
         fieldnames = []
         for fd in descriptors:
-            if not isinstance(fd, DocumentFieldDescriptor):
-                raise TypeError("All structure entries must be DocumentFieldDescriptor instances")
+            if not isinstance(fd, FieldDescriptor):
+                raise TypeError("All structure entries must be FieldDescriptor instances")
 
             fieldnames.append(fd.fieldname)
             if fd.is_list() or fd.is_dict():

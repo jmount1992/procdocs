@@ -19,7 +19,7 @@ from typing import List, Optional, Set
 from pathlib import Path
 
 from procdocs.core.document_schema import DocumentSchema
-from procdocs.core.document_field_descriptor import DocumentFieldDescriptor
+from procdocs.core.field_descriptor import FieldDescriptor
 
 
 def generate_yaml_template(meta_schema: DocumentSchema, filepath: Path) -> None:
@@ -48,7 +48,7 @@ def generate_yaml_template(meta_schema: DocumentSchema, filepath: Path) -> None:
         f.write("\n".join(lines))
 
 
-def _build_comment(fd: DocumentFieldDescriptor) -> Optional[str]:
+def _build_comment(fd: FieldDescriptor) -> Optional[str]:
     """
     Construct an inline comment string for a field, based on metadata.
 
@@ -95,12 +95,12 @@ def _get_prefix_and_indent(indent: int, is_first_line: bool, in_list: bool) -> t
     return prefix, child_indent
 
 
-def _render_scalar_field(fd: DocumentFieldDescriptor, prefix: str) -> str:
+def _render_scalar_field(fd: FieldDescriptor, prefix: str) -> str:
     """
     Render a single scalar field (no children) as a YAML line.
 
     Args:
-        fd: The DocumentFieldDescriptor for the scalar field.
+        fd: The FieldDescriptor for the scalar field.
         prefix: The YAML line prefix (including indentation and optional '- ').
 
     Returns:
@@ -112,7 +112,7 @@ def _render_scalar_field(fd: DocumentFieldDescriptor, prefix: str) -> str:
 
 
 def _render_field_descriptor_lines(
-    fd: DocumentFieldDescriptor,
+    fd: FieldDescriptor,
     indent: int = 0,
     is_first_line: bool = False,
     in_list: bool = False,
@@ -122,7 +122,7 @@ def _render_field_descriptor_lines(
     Recursively render a field and its children into YAML-formatted lines.
 
     Args:
-        fd: The DocumentFieldDescriptor to render.
+        fd: The FieldDescriptor to render.
         indent: The base indentation level for this field.
         is_first_line: Whether this line starts a list item (adds '-').
         in_list: Whether this field appears inside a list.
