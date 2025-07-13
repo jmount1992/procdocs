@@ -9,9 +9,13 @@ from procdocs.core.base_metadata import BaseMetadata
 class SampleMetadata(BaseMetadata):
     def __init__(self):
         super().__init__()
+        self.document_type = None
 
     def _required(self):
         return ("format_version", "document_type")
+
+    def _derived_attributes(self):
+        return ["document_type"]
 
 
 # --- Test cases ---
@@ -32,7 +36,7 @@ def test_invalid_format_version():
 def test_missing_required_field_validation():
     md = SampleMetadata()
     md.format_version = "1.0.0"
-    with pytest.raises(ValueError, match="Missing required metadata field: 'document_type'"):
+    with pytest.raises(ValueError, match="Missing required metadata fields: 'document_type'"):
         md.validate()
 
 
@@ -48,6 +52,7 @@ def test_from_dict_known_and_user_fields():
     assert md.format_version == "1.0.0"
     assert md.author == "Alice"
     assert md.priority == "high"
+    print(md.to_dict())
     assert md.to_dict()["author"] == "Alice"
     assert md.to_dict()["priority"] == "high"
 

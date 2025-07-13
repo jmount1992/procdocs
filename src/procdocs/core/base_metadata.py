@@ -3,6 +3,7 @@
 from typing import Optional, List, Dict, Any
 
 from procdocs.core.utils import is_strict_semver
+from procdocs.core.validation import ValidationResult
 
 
 class BaseMetadata:
@@ -30,12 +31,14 @@ class BaseMetadata:
         base = {
             "format_version": self.format_version,
         }
+        for key in self._derived_attributes():
+            base[key] = getattr(self, key)
         for key in self._user_defined:
             base[key] = getattr(self, key)
         return base
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "BaseMetadata":
+    def from_dict(cls, data: Dict, strict: bool = True) -> "BaseMetadata":
         """
         Create a metadata instance from a dict with optional key mapping.
         """
@@ -46,20 +49,27 @@ class BaseMetadata:
                 setattr(obj, norm_key, val)
             else:
                 obj._add_user_field(norm_key, val)
+        obj.validate(strict=strict)
         return obj
 
-    def validate(self) -> None:
+    def validate(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         """
-        Raise an error if any required field is missing.
+        Raise an error or collect validation issues if required fields are missing.
         """
-        for attr in self._required():
-            if getattr(self, attr, None) is None:
-                raise ValueError(f"Missing required metadata field: '{attr}'")
+        collector = collector or ValidationResult()
+        missing = [attr for attr in self._required() if getattr(self, attr, None) is None]
+        if missing:
+            msg = "Missing required metadata fields: " + ", ".join(f"'{m}'" for m in missing)
+            collector.report(msg, strict, ValueError)
+        return collector
 
     def _add_user_field(self, key: str, data: Any) -> None:
         self._user_defined[key] = data
 
-    def _required(self) -> List:
+    def _required(self) -> List[str]:
+        raise NotImplementedError("Must be implemented by the derived class")
+
+    def _derived_attributes(self) -> List[str]:
         raise NotImplementedError("Must be implemented by the derived class")
 
     def __getattr__(self, name: str) -> Any:

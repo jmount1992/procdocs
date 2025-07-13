@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Union, Tuple
 
 from procdocs.core.schema.field_type import FieldType
 from procdocs.core.utils import RESERVED_FIELDNAMES, FIELDNAME_ALLOWED_PATTERN, is_valid_fieldname_pattern
+from procdocs.core.validation import ValidationResult
 
 
 class FieldDescriptor:
@@ -102,7 +103,7 @@ class FieldDescriptor:
             return any(self.is_fieldtype(v) for v in value)
         return self.fieldtype == FieldType.parse(value)
 
-    def validate(self) -> None:
+    def validate(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         """
         Validates the field descriptor against all applicable rules:
         - Field name is present and not reserved.
@@ -111,23 +112,35 @@ class FieldDescriptor:
         - ENUMs have defined options.
         - Nested fields are only used in LIST or DICT types.
 
+        Args:
+            collector: Accumulates all validation errors.
+            strict: If True, raises on first error.
+
         Raises:
-            ValueError or TypeError if validation fails.
+            ValueError or TypeError if validation fails and strict is True.
+
+        Returns:
+            ValidationResult: The collected validation results.
         """
-        self._validate_fieldname()
-        self._validate_fieldtype()
-        self._validate_pattern()
-        self._validate_required()
+        collector = collector or ValidationResult()
+        self._validate_fieldname(collector=collector, strict=strict)
+        self._validate_fieldtype(collector=collector, strict=strict)
+        self._validate_pattern(collector=collector, strict=strict)
+        self._validate_required(collector=collector, strict=strict)
+        if self.is_list() or self.is_dict() and self.fields:
+            for child in self.fields:
+                child.validate(collector=collector, strict=strict)
+        return collector
 
     @classmethod
-    def from_dict(cls, data: Dict, level: int = 0, validate: bool = True) -> "FieldDescriptor":
+    def from_dict(cls, data: Dict, level: int = 0, strict: bool = True) -> "FieldDescriptor":
         """
         Creates a FieldDescriptor from a dictionary.
 
         Args:
             data (Dict): A dictionary conforming to meta-schema field definition.
             level (int): The nesting level (used for UID computation).
-            validate (bool): Whether to validate the field on load.
+            strict (bool): Whether to validate the field on load.
 
         Returns:
             FieldDescriptor: Parsed and optionally validated descriptor.
@@ -147,8 +160,7 @@ class FieldDescriptor:
         if fields:
             fd._fields = [cls.from_dict(child, level=level + 1) for child in fields]
 
-        if validate:
-            fd.validate()
+        fd.validate(strict=strict)
         return fd
 
     def to_dict(self) -> Dict[str, Any]:
@@ -183,40 +195,53 @@ class FieldDescriptor:
         raw = f"{fieldname}:{level}"
         return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:10]
 
-    def _validate_fieldname(self) -> None:
+    def _validate_fieldname(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         """Checks that the fieldname exists and is not reserved."""
+        collector = collector or ValidationResult()
         if not self.fieldname:
-            raise ValueError(f"Field descriptor {self.uid} is invalid. The 'fieldname' key is not set.")
+            msg = f"Field descriptor {self.uid} is invalid. The 'fieldname' key is not set."
+            collector.report(msg, strict, ValueError)
 
         if self.fieldname in RESERVED_FIELDNAMES:
-            raise ValueError(f"Field descriptor {self.uid} is invalid. '{self.fieldname}' is a reserved name and cannot be used.")
+            msg = f"Field descriptor {self.uid} is invalid. '{self.fieldname}' is a reserved name and cannot be used."
+            collector.report(msg, strict, ValueError)
 
         if not is_valid_fieldname_pattern(self.fieldname):
-            raise ValueError(f"Field descriptor {self.uid} is invalid. The fieldname '{self.fieldname}' must match the pattern '{FIELDNAME_ALLOWED_PATTERN.pattern}'.")
+            msg = f"Field descriptor {self.uid} is invalid. The fieldname '{self.fieldname}' must match the pattern '{FIELDNAME_ALLOWED_PATTERN.pattern}'."
+            collector.report(msg, strict, ValueError)
+        return collector
 
-    def _validate_fieldtype(self) -> None:
+    def _validate_fieldtype(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         """Checks the validity of the fieldtype and nested field logic."""
         if self.fieldtype is FieldType.INVALID:
-            raise ValueError(f"Field descriptor {self.uid} is invalid. Invalid fieldtype '{self._raw_fieldtype}'.")        
+            msg = f"Field descriptor {self.uid} is invalid. Invalid fieldtype '{self._raw_fieldtype}'."
+            collector.report(msg, strict, ValueError)  
 
         if len(self.fields) != 0 and not (self.is_list() or self.is_dict()):
-            raise ValueError(f"Field descriptor {self.uid} is invalid. Nested 'fields' only allowed for 'list' or 'dict' types ")
+            msg = f"Field descriptor {self.uid} is invalid. Nested 'fields' only allowed for 'list' or 'dict' types."
+            collector.report(msg, strict, ValueError)
 
         if not self.options and self.is_enum():
-            raise ValueError(f"Field descriptor {self.uid} is invalid. The ENUM fieldtype must define 'options'.")
+            msg = f"Field descriptor {self.uid} is invalid. The ENUM fieldtype must define 'options'."
+            collector.report(msg, strict, ValueError)
+        return collector
 
-    def _validate_pattern(self) -> None:
+    def _validate_pattern(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         """Validates the regex pattern if specified."""
         if self.pattern:
             try:
                 re.compile(self.pattern)
             except re.error as e:
-                raise ValueError(f"Field descriptor {self.uid} is invalid. Invalid regex pattern '{e}'.")
+                msg = f"Field descriptor {self.uid} is invalid. Invalid regex pattern '{e}'."
+                collector.report(msg, strict, ValueError)
+        return collector
 
-    def _validate_required(self) -> None:
+    def _validate_required(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         """Ensures the 'required' attribute is a boolean."""
         if self.required and not isinstance(self.required, bool):
-            raise ValueError(f"Field descriptor {self.uid} is invalid. The 'required' must be boolean.")
+            msg = f"Field descriptor {self.uid} is invalid. The 'required' must be boolean."
+            collector.report(msg, strict, ValueError)
+        return collector
 
     def __repr__(self):
         """Returns a compact string representation of the field descriptor."""

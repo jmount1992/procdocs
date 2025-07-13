@@ -6,6 +6,7 @@ from typing import Dict, Union, Iterable, Optional
 
 from procdocs.core.schema.field_descriptor import FieldDescriptor
 from procdocs.core.schema.metadata import DocumentSchemaMetadata
+from procdocs.core.validation import ValidationResult
 
 
 class DocumentSchema:
@@ -61,8 +62,7 @@ class DocumentSchema:
         raw_structure = data.get("structure", [])
         field_descriptors = [FieldDescriptor.from_dict(fielddata) for fielddata in raw_structure]
         ms._structure = {idx: fd for idx, fd in enumerate(field_descriptors)}
-        if strict:
-            ms.validate()
+        ms.validate(strict=strict)
         return ms
 
     @classmethod
@@ -93,33 +93,35 @@ class DocumentSchema:
 
         return cls.from_dict(data, strict)
 
-    def validate(self) -> None:
+    def validate(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         """
         Validates the full meta-schema:
         - Metadata section must contain required keys.
         - Structure must be well-formed and contain no duplicate field names.
         """
-        self.metadata.validate()
-        self._validate_structure()
+        collector = collector or ValidationResult()
+        self._validate_metadata(collector=collector, strict=strict)
+        self._validate_structure(collector=collector, strict=strict)
+        return collector
 
-    def _validate_metadata(self) -> None:
-        """Validates the metadata dictionary, checking for required fields."""
-        if not isinstance(self.metadata, dict):
-            raise ValueError("The 'metadata' must be a dictionary")
+    def _validate_metadata(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
+        collector = collector or ValidationResult()
+        if not isinstance(self.metadata, DocumentSchemaMetadata):
+            msg = "The 'metadata' must be of type 'DocumentSchemaMetadata'"
+            collector.report(msg, strict, TypeError)
+        collector = self.metadata.validate(collector=collector, strict=strict)
+        return collector
 
-        required_keys = ("schema_name", "meta_schema_version")
-        for key in required_keys:
-            if key not in self.metadata:
-                raise ValueError(f"Metadata must contain '{key}'")
-
-    def _validate_structure(self) -> None:
+    def _validate_structure(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         """Validates the structure dictionary and each field descriptor."""
+        collector = collector or ValidationResult()
         if not isinstance(self.structure, dict):
-            raise ValueError("The 'structure' must be a dict.")
+            msg = "The 'structure' must be a dict."
+            collector.report(msg, strict, TypeError)
+        collector = self._validate_field_descriptors(self.structure.values())
+        return collector
 
-        self._validate_field_descriptors(self.structure.values())
-
-    def _validate_field_descriptors(self, descriptors: Iterable[FieldDescriptor]) -> None:
+    def _validate_field_descriptors(self, descriptors: Iterable[FieldDescriptor], collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         """
         Recursively validates a collection of FieldDescriptors.
 
@@ -130,15 +132,20 @@ class DocumentSchema:
             ValueError: If duplicate fieldnames are found.
             TypeError: If non-descriptor items are present.
         """
+        collector = collector or ValidationResult()
         fieldnames = []
         for fd in descriptors:
             if not isinstance(fd, FieldDescriptor):
-                raise TypeError("All structure entries must be FieldDescriptor instances")
+                msg = "All structure entries must be FieldDescriptor instances"
+                collector.report(msg, strict, TypeError)
 
             fieldnames.append(fd.fieldname)
             if fd.is_list() or fd.is_dict():
-                self._validate_field_descriptors(fd.fields)
+                self._validate_field_descriptors(fd.fields, collector=collector, strict=strict)
 
         if len(fieldnames) != len(set(fieldnames)):
             duplicates = [name for name in set(fieldnames) if fieldnames.count(name) > 1]
-            raise ValueError(f"Duplicate field names found: {duplicates}")
+            msg = f"Duplicate field names found: {duplicates}"
+            collector.report(msg, strict, ValueError)
+
+        return collector

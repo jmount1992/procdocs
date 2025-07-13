@@ -34,11 +34,8 @@ class DocumentSchemaMetadata(BaseMetadata):
             raise ValueError(f"Invalid schema version: '{value}'")
         self._schema_version = value
 
-    def to_dict(self) -> Dict[str, str]:
-        data = super().to_dict()
-        data["schema_name"] = self.schema_name
-        data["schema_version"] = self.schema_version
-        return data
-
     def _required(self):
-        return ("schema_name", "format_version")
+        return ["schema_name", "format_version"]
+
+    def _derived_attributes(self):
+        return ["schema_name", "schema_version"]

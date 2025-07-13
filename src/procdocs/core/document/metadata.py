@@ -34,11 +34,8 @@ class DocumentMetadata(BaseMetadata):
             raise ValueError(f"Invalid document version: '{value}'")
         self._document_version = value
 
-    def to_dict(self) -> Dict[str, str]:
-        data = super().to_dict()
-        data["document_type"] = self.document_type
-        data["document_version"] = self.document_version
-        return data
-
     def _required(self):
-        return ("document_type", "format_version")
+        return ["document_type", "format_version"]
+
+    def _derived_attributes(self):
+        return ["document_type", "document_version"]
