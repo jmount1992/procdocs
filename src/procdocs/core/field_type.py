@@ -5,6 +5,19 @@ from typing import Union
 
 
 class FieldType(str, Enum):
+    """
+    Enum representing the supported field types in a meta-schema.
+
+    Supported types:
+    - STRING: A text string.
+    - NUMBER: A numerical value (int or float).
+    - BOOLEAN: A true/false value.
+    - LIST: A list of nested fields.
+    - DICT: A dictionary of named nested fields.
+    - ENUM: A string constrained to a fixed set of options.
+    - INVALID: An invalid or unrecognized type.
+    """
+
     STRING = "string"
     NUMBER = "number"
     BOOLEAN = "boolean"
@@ -15,6 +28,15 @@ class FieldType(str, Enum):
 
     @staticmethod
     def parse(value: Union[str, "FieldType"]) -> "FieldType":
+        """
+        Parse a string or FieldType into a valid FieldType enum value.
+
+        Args:
+            value (Union[str, FieldType]): The raw fieldtype as a string or FieldType.
+
+        Returns:
+            FieldType: A valid FieldType enum member. If parsing fails, returns FieldType.INVALID.
+        """
         if isinstance(value, FieldType):
             return value
         try:

@@ -9,6 +9,10 @@ Welcome to ProcDocs Documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   meta_schema.rst
+   field_descriptor.rst
+   field_type.rst
+   meta_schema_specification.rst
 
 Indices and tables
 ==================
