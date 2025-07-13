@@ -4,8 +4,8 @@ import hashlib
 import re
 from typing import Any, Dict, List, Optional, Union, Tuple
 
-from procdocs.core.field_type import FieldType
-from procdocs.core.utils import RESERVED_FIELDNAMES
+from procdocs.core.schema.field_type import FieldType
+from procdocs.core.utils import RESERVED_FIELDNAMES, FIELDNAME_ALLOWED_PATTERN, is_valid_fieldname_pattern
 
 
 class FieldDescriptor:
@@ -190,9 +190,9 @@ class FieldDescriptor:
 
         if self.fieldname in RESERVED_FIELDNAMES:
             raise ValueError(f"Field descriptor {self.uid} is invalid. '{self.fieldname}' is a reserved name and cannot be used.")
-        
-        if '-' in self.fieldname:
-            raise ValueError(f"Field descriptor {self.uid} is invalid. '{self.fieldname}' cannot contain '-'.")
+
+        if not is_valid_fieldname_pattern(self.fieldname):
+            raise ValueError(f"Field descriptor {self.uid} is invalid. The fieldname '{self.fieldname}' must match the pattern '{FIELDNAME_ALLOWED_PATTERN.pattern}'.")
 
     def _validate_fieldtype(self) -> None:
         """Checks the validity of the fieldtype and nested field logic."""

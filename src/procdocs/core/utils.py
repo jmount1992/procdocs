@@ -35,13 +35,11 @@ def is_valid_version(version: str) -> bool:
     return bool(VERSION_REGEX.match(version))
 
 
-def is_valid_fieldname(name: str) -> bool:
+def is_valid_fieldname_pattern(name: str) -> bool:
     """
-    Return True if the fieldname is valid:
-    - Not in RESERVED_FIELDNAMES
-    - Matches FIELDNAME_ALLOWED_PATTERN
+    Return True if the fieldname is matches the FIELDNAME_ALLOWED_PATTERN
     """
-    return name not in RESERVED_FIELDNAMES and bool(FIELDNAME_ALLOWED_PATTERN.match(name))
+    return bool(FIELDNAME_ALLOWED_PATTERN.match(name))
 
 
 def validate_constants():

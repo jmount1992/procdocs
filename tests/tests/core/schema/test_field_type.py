@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import pytest
-from procdocs.core.field_type import FieldType
+from procdocs.core.schema.field_type import FieldType
 
 
 # --- Field Type Validation --- #

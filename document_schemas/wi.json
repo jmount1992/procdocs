@@ -1,7 +1,7 @@
 {
     "metadata": {
-        "filetype": "wi",
-        "meta_schema_version": "0.1"
+        "schema_name": "wi",
+        "format_version": "0.0.0"
     },
 
     "structure": [
@@ -15,7 +15,7 @@
             "fieldname": "steps",
             "fieldtype": "list",
             "fields": [
-                { "fieldname": "step-number", "fieldtype": "number" },
+                { "fieldname": "step_number", "fieldtype": "number" },
                 { "fieldname": "step" },
                 { "fieldname": "code", "required": false },
                 { "fieldname": "note", "required": false },

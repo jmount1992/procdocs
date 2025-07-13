@@ -1,7 +1,7 @@
 {
     "metadata": {
-        "filetype": "wi-document",
-        "meta_schema_version": "0.1"
+        "schema_name": "wi-document",
+        "format_version": "0.0.0"
     },
 
     "structure": [

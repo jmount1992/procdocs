@@ -18,8 +18,8 @@ Typical entry point:
 from typing import List, Optional, Set
 from pathlib import Path
 
-from procdocs.core.document_schema import DocumentSchema
-from procdocs.core.field_descriptor import FieldDescriptor
+from procdocs.core.schema.schema import DocumentSchema
+from procdocs.core.schema.field_descriptor import FieldDescriptor
 
 
 def generate_yaml_template(meta_schema: DocumentSchema, filepath: Path) -> None:

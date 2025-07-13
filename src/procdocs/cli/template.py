@@ -1,6 +1,6 @@
 import argparse
 
-from procdocs.core.document_schema import DocumentSchema
+from procdocs.core.schema.schema import DocumentSchema
 from procdocs.tooling.generate_yaml_template import generate_yaml_template
 
 

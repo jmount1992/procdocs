@@ -3,7 +3,7 @@
 import pytest
 
 from procdocs.core.utils import RESERVED_FIELDNAMES
-from procdocs.core.field_descriptor import FieldDescriptor, FieldType
+from procdocs.core.schema.field_descriptor import FieldDescriptor, FieldType
 
 
 # --- Field Name Validation --- #

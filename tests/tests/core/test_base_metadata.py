@@ -2,7 +2,7 @@
 
 import pytest
 
-from procdocs.core.metadata import BaseMetadata
+from procdocs.core.base_metadata import BaseMetadata
 
 
 # --- Minimal subclass for testing ---

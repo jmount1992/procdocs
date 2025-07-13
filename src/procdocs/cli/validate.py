@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 # from procdocs.core.loader import load_yaml_file, load_json_file
-from procdocs.core.document_schema import DocumentSchema
+from procdocs.core.schema.schema import DocumentSchema
 
 
 SUPPORTED_EXTENSIONS = {'.yml', '.yaml', '.json'}

@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import json
 
-from procdocs.core.document_schema import DocumentSchema
+from procdocs.core.schema.schema import DocumentSchema
 
 
 # --- Helpers --- #
@@ -31,7 +31,7 @@ def test_valid_meta_schema_from_dict():
         ]
     }
     ms = DocumentSchema.from_dict(data)
-    assert ms.metadata.document_type == "wi"
+    assert ms.metadata.schema_name == "wi"
     assert len(ms.structure) == 2
     assert ms.structure[0].fieldname == "id"
     assert ms.structure[1].fieldname == "title"

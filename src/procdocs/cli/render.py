@@ -6,8 +6,8 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
-from procdocs.core.document_schema import DocumentSchema
-from procdocs.core.document import Document
+from procdocs.core.schema.schema import DocumentSchema
+from procdocs.core.document.document import Document
 
 
 def extract_schema_metadata(template_path: Path) -> dict:
