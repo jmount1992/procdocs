@@ -6,8 +6,84 @@ from procdocs.core.utils import RESERVED_FIELDNAMES
 from procdocs.core.schema.field_descriptor import FieldDescriptor, FieldType
 
 
-# --- Field Name Validation --- #
+# --- Object Instantiation -- #
+def test_object_instantiation():
+    fd = FieldDescriptor()
+    assert fd.fieldname == None
+    assert fd.fieldtype == None
+    assert fd.required == None
+    assert fd.description == None
+    assert fd.options == None
+    assert fd.pattern == None
+    assert fd.default == None
+    assert fd.fields == []
+    assert fd.uid == None
 
+
+# --- Test Field Type Handling --- #
+@pytest.mark.parametrize("ft_input, expected_enum, extra", [
+    ("string", FieldType.STRING, {}),
+    (FieldType.STRING, FieldType.STRING, {}),
+    ("number", FieldType.NUMBER, {}),
+    (FieldType.NUMBER, FieldType.NUMBER, {}),
+    ("boolean", FieldType.BOOLEAN, {}),
+    (FieldType.BOOLEAN, FieldType.BOOLEAN, {}),
+    ("list", FieldType.LIST, {}),
+    (FieldType.LIST, FieldType.LIST, {}),
+    ("dict", FieldType.DICT, {}),
+    (FieldType.DICT, FieldType.DICT, {}),
+    ("enum", FieldType.ENUM, {"options": ["A", "B"]}),
+    (FieldType.ENUM, FieldType.ENUM, {"options": ["A", "B"]}),
+])
+def test_fieldtype_and_type_check_helpers(ft_input, expected_enum, extra):
+    data = {"fieldname": "name", "fieldtype": ft_input, **extra}
+    desc = FieldDescriptor.from_dict(data)
+    assert desc.fieldtype == expected_enum
+
+    # Check is_fieldtype behavior
+    assert desc.is_fieldtype(expected_enum) is True
+    assert desc.is_fieldtype(expected_enum.value) is True
+    assert desc.is_fieldtype([expected_enum]) is True
+
+    # Check negative cases
+    others = [ft for ft in FieldType if ft != expected_enum and ft != FieldType.INVALID]
+    for other in others:
+        assert desc.is_fieldtype(other) is False
+
+
+def test_invalid_fieldtype_is_rejected():
+    with pytest.raises(ValueError, match="Invalid fieldtype 'blorp'"):
+        FieldDescriptor.from_dict({"fieldname": "name", "fieldtype": "blorp"})
+
+
+def test_fieldtype_defaults_to_string_if_not_provided():
+    desc = FieldDescriptor.from_dict({"fieldname": "undecided"})
+    assert desc.fieldtype == FieldType.STRING
+
+
+def test_is_fieldtype_with_multiple_values():
+    desc = FieldDescriptor.from_dict({"fieldname": "setting", "fieldtype": "enum", "options": ["A", "B"]})
+    assert desc.is_fieldtype(("enum", "dict")) is True
+    assert desc.is_fieldtype(["number", "list"]) is False
+
+
+@pytest.mark.parametrize("fieldtype, expected", [
+    (FieldType.STRING, {"is_list": False, "is_dict": False, "is_enum": False}),
+    (FieldType.NUMBER, {"is_list": False, "is_dict": False, "is_enum": False}),
+    (FieldType.BOOLEAN, {"is_list": False, "is_dict": False, "is_enum": False}),
+    (FieldType.LIST,   {"is_list": True,  "is_dict": False, "is_enum": False}),
+    (FieldType.DICT,   {"is_list": False, "is_dict": True,  "is_enum": False}),
+    (FieldType.ENUM,   {"is_list": False, "is_dict": False, "is_enum": True}),
+])
+def test_fieldtype_flags(fieldtype, expected):
+    fd = FieldDescriptor()
+    fd._fieldtype = fieldtype
+    assert fd.is_list() == expected["is_list"]
+    assert fd.is_dict() == expected["is_dict"]
+    assert fd.is_enum() == expected["is_enum"]
+
+
+# --- Field Name Validation --- #
 def test_valid_fieldname():
     desc = FieldDescriptor.from_dict({"fieldname": "name"})
     assert desc.fieldname == "name"
@@ -26,43 +102,7 @@ def test_unset_fieldname_raises():
 
 # --- FieldType Handling --- #
 
-@pytest.mark.parametrize("ft_str, ft_enum, extra", [
-    ("string", FieldType.STRING, {}),
-    ("number", FieldType.NUMBER, {}),
-    ("boolean", FieldType.BOOLEAN, {}),
-    ("list", FieldType.LIST, {}),
-    ("dict", FieldType.DICT, {}),
-    ("enum", FieldType.ENUM, {"options": ["A", "B"]}),
-])
-def test_valid_fieldtypes_str(ft_str, ft_enum, extra):
-    data = {"fieldname": "name", "fieldtype": ft_str, **extra}
-    desc = FieldDescriptor.from_dict(data)
-    assert isinstance(desc.fieldtype, FieldType)
-    assert desc.fieldtype == ft_enum
 
-
-@pytest.mark.parametrize("ft_enum, extra", [
-    (FieldType.STRING, {}),
-    (FieldType.NUMBER, {}),
-    (FieldType.BOOLEAN, {}),
-    (FieldType.LIST, {}),
-    (FieldType.DICT, {}),
-    (FieldType.ENUM, {"options": ["A", "B"]}),
-])
-def test_valid_fieldtypes_enum(ft_enum, extra):
-    data = {"fieldname": "name", "fieldtype": ft_enum, **extra}
-    desc = FieldDescriptor.from_dict(data)
-    assert desc.fieldtype == ft_enum
-
-
-def test_invalid_fieldtype_is_rejected():
-    with pytest.raises(ValueError, match="Invalid fieldtype 'blorp'"):
-        FieldDescriptor.from_dict({"fieldname": "name", "fieldtype": "blorp"})
-
-
-def test_fieldtype_defaults_to_string_if_not_provided():
-    desc = FieldDescriptor.from_dict({"fieldname": "undecided"})
-    assert desc.fieldtype == FieldType.STRING
 
 
 # --- Required, Default, Options, Description --- #
@@ -165,29 +205,7 @@ def test_enum_field_requires_options():
 
 # --- is_fieldtype() Behavior --- #
 
-@pytest.mark.parametrize("value, expected, extra", [
-    ("string", FieldType.STRING, {}),
-    ("number", FieldType.NUMBER, {}),
-    ("boolean", FieldType.BOOLEAN, {}),
-    ("list", FieldType.LIST, {}),
-    ("dict", FieldType.DICT, {}),
-    ("enum", FieldType.ENUM, {"options": ["A", "B"]}),
-])
-def test_is_fieldtype(value, expected, extra):
-    desc = FieldDescriptor.from_dict({"fieldname": "name", "fieldtype": value, **extra})
-    assert desc.is_fieldtype(expected) is True
-    assert desc.is_fieldtype(expected.value) is True
-    assert desc.is_fieldtype([expected]) is True
 
-    others = [ft for ft in FieldType if ft != expected and ft != FieldType.INVALID]
-    for other in others:
-        assert desc.is_fieldtype(other) is False
-
-
-def test_is_fieldtype_with_multiple_values():
-    desc = FieldDescriptor.from_dict({"fieldname": "setting", "fieldtype": "enum", "options": ["A", "B"]})
-    assert desc.is_fieldtype(("enum", "dict")) is True
-    assert desc.is_fieldtype(["number", "list"]) is False
 
 
 # --- UID Generation --- #
@@ -207,5 +225,5 @@ def test_repr_outputs_useful_info():
     desc = FieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number", "default": 42})
     rep = repr(desc)
     assert "depth" in rep
-    assert "FieldType.NUMBER" in rep
+    assert "number" in rep
     assert "42" in rep

@@ -2,7 +2,7 @@
     "metadata": {
         "schema_name": "test",
         "schema_version": "0.1",
-        "format_version": "0.0.0"
+        "format_version": "0.00"
     },
 
     "structure": [
@@ -23,7 +23,7 @@
             "default": "other"
         },
         {
-            "fieldname": "preconditions",
+            "fieldname": "pre-conditions",
             "fieldtype": "list",
             "required": false,
             "fields": [
@@ -31,7 +31,7 @@
                     "fieldname": "condition"
                 },
                 {
-                    "fieldname": "associated_instruction",
+                    "fieldnam": "associated_instruction",
                     "fieldtype": "dict",
                     "required": false,
                     "fields": [

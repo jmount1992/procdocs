@@ -26,9 +26,6 @@ class ValidationResult:
     def is_valid(self) -> bool:
         return not self.errors
 
-    def __bool__(self):
-        return self.is_valid()
-
     def __len__(self):
         return len(self.errors)
 

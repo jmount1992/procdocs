@@ -58,9 +58,9 @@ class DocumentSchema:
             DocumentSchema: A fully parsed schema instance.
         """
         ms = cls()
-        ms._metadata = DocumentSchemaMetadata.from_dict(data.get("metadata", {}))
+        ms._metadata = DocumentSchemaMetadata.from_dict(data.get("metadata", {}), strict=strict)
         raw_structure = data.get("structure", [])
-        field_descriptors = [FieldDescriptor.from_dict(fielddata) for fielddata in raw_structure]
+        field_descriptors = [FieldDescriptor.from_dict(fielddata, strict=strict) for fielddata in raw_structure]
         ms._structure = {idx: fd for idx, fd in enumerate(field_descriptors)}
         ms.validate(strict=strict)
         return ms
@@ -118,7 +118,7 @@ class DocumentSchema:
         if not isinstance(self.structure, dict):
             msg = "The 'structure' must be a dict."
             collector.report(msg, strict, TypeError)
-        collector = self._validate_field_descriptors(self.structure.values())
+        collector = self._validate_field_descriptors(self.structure.values(), collector=collector, strict=strict)
         return collector
 
     def _validate_field_descriptors(self, descriptors: Iterable[FieldDescriptor], collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:

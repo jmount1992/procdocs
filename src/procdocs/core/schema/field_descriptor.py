@@ -77,18 +77,6 @@ class FieldDescriptor:
         """Returns the unique ID of the descriptor, derived from name and nesting level."""
         return self._uid
 
-    def is_list(self) -> bool:
-        """Returns True if the fieldtype is LIST."""
-        return self.is_fieldtype(FieldType.LIST)
-
-    def is_dict(self) -> bool:
-        """Returns True if the fieldtype is DICT."""
-        return self.is_fieldtype(FieldType.DICT)
-
-    def is_enum(self) -> bool:
-        """Returns True if the fieldtype is ENUM."""
-        return self.is_fieldtype(FieldType.ENUM)
-
     def is_fieldtype(self, value: Union[str, FieldType, Tuple[Union[str, FieldType], ...]]) -> bool:
         """
         Checks if the field's type matches one or more given types.
@@ -102,6 +90,18 @@ class FieldDescriptor:
         if isinstance(value, (tuple, list)):
             return any(self.is_fieldtype(v) for v in value)
         return self.fieldtype == FieldType.parse(value)
+
+    def is_list(self) -> bool:
+        """Returns True if the fieldtype is LIST."""
+        return self.is_fieldtype(FieldType.LIST)
+
+    def is_dict(self) -> bool:
+        """Returns True if the fieldtype is DICT."""
+        return self.is_fieldtype(FieldType.DICT)
+
+    def is_enum(self) -> bool:
+        """Returns True if the fieldtype is ENUM."""
+        return self.is_fieldtype(FieldType.ENUM)
 
     def validate(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         """
@@ -158,7 +158,7 @@ class FieldDescriptor:
 
         fields = data.get("fields", [])
         if fields:
-            fd._fields = [cls.from_dict(child, level=level + 1) for child in fields]
+            fd._fields = [cls.from_dict(child, level=level + 1, strict=strict) for child in fields]
 
         fd.validate(strict=strict)
         return fd
