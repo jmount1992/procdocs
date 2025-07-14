@@ -4,12 +4,22 @@ from typing import Optional, List, Dict, Any, Callable
 
 from procdocs.core.validation import ValidationResult
 
+
 class Base:
 
     def __init__(self) -> None:
         self._user_defined: Dict[str, Any] = {}
         self._check_declared_attributes_exist(self._required)
         self._check_declared_attributes_exist(self._derived_attributes)
+
+    def to_dict(self) -> Dict[str, str]:
+        base = {}
+        derived_attrs = self._derived_attributes()
+        for key in derived_attrs:
+            base[key] = getattr(self, key)
+        for key in self._user_defined:
+            base[key] = getattr(self, key)
+        return base
 
     @classmethod
     def from_dict(cls, data: Dict, strict: bool = True) -> "Base":
@@ -25,14 +35,14 @@ class Base:
         return obj
 
     def validate(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
-        """
-        Raise an error or collect validation issues if required fields are missing.
-        """
         collector = collector or ValidationResult()
         collector = self._validate_required_fields_are_set(collector=collector, strict=strict)
-        collector = self._validate_derived(collector=collector, strict=strict)
+        collector = self._validate_additional(collector=collector, strict=strict)
         return collector
-    
+
+    def _validate_additional(self, collector: ValidationResult, strict: bool) -> ValidationResult:
+        raise NotImplementedError("Derived class must implement _validate_additional()")
+
     def _validate_required_fields_are_set(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         collector = collector or ValidationResult()
         required_attrs = self._required()
@@ -41,19 +51,16 @@ class Base:
             msg = "Missing required metadata fields: " + ", ".join(f"'{m}'" for m in missing)
             collector.report(msg, strict, ValueError)
         return collector
-    
-    def _validate_derived(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
-        raise NotImplementedError("Must be implemented by the derived class")
 
     def _add_user_field(self, key: str, data: Any) -> None:
         self._user_defined[key] = data
 
     def _required(self) -> List[str]:
-        raise NotImplementedError("Must be implemented by the derived class")
+        raise NotImplementedError("Derived class must implement _required()")
 
     def _derived_attributes(self) -> List[str]:
-        raise NotImplementedError("Must be implemented by the derived class")
-    
+        raise NotImplementedError("Derived class must implement _derived_attributes()")
+
     def _check_declared_attributes_exist(self, attr_func: Callable[[], list[str]]) -> None:
         """
         Calls the given function to retrieve a list of attribute names and checks
