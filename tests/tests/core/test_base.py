@@ -42,18 +42,18 @@ class SampleBase(Base):
         collector = self._validate_format_version(self.format_version, collector, strict)
         return collector
 
-    def _required(self) -> List[str]:
-        return ["format_version"]
-
-    def _derived_attributes(self) -> List[str]:
-        return ["format_version", "document_type"]
-
     def _validate_format_version(self, value, collector: ValidationResult = None, strict: bool = True) -> ValidationResult:
         collector = collector or ValidationResult()
         if not is_strict_semver(str(value)):
             msg = f"Invalid format version: '{value}'"
             collector.report(msg, strict, ValueError)
         return collector
+
+    def _required(self) -> List[str]:
+        return ["format_version"]
+
+    def _derived_attributes(self) -> List[str]:
+        return ["format_version", "document_type"]
 
 
 # --- Test Class Abstraction --- #

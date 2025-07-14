@@ -9,15 +9,15 @@ from procdocs.core.schema.field_descriptor import FieldDescriptor, FieldType
 # --- Object Instantiation -- #
 def test_object_instantiation():
     fd = FieldDescriptor()
-    assert fd.fieldname == None
-    assert fd.fieldtype == None
-    assert fd.required == None
-    assert fd.description == None
-    assert fd.options == None
-    assert fd.pattern == None
-    assert fd.default == None
+    assert fd.fieldname is None
+    assert fd.fieldtype is None
+    assert fd.required is None
+    assert fd.description is None
+    assert fd.options is None
+    assert fd.pattern is None
+    assert fd.default is None
     assert fd.fields == []
-    assert fd.uid == None
+    assert fd.uid is None
 
 
 # --- Test Field Type Handling --- #
@@ -98,11 +98,6 @@ def test_reserved_fieldname_raises(fieldname):
 def test_unset_fieldname_raises():
     with pytest.raises(ValueError, match="'fieldname' key is not set"):
         FieldDescriptor.from_dict({})
-
-
-# --- FieldType Handling --- #
-
-
 
 
 # --- Required, Default, Options, Description --- #
@@ -203,11 +198,6 @@ def test_enum_field_requires_options():
         })
 
 
-# --- is_fieldtype() Behavior --- #
-
-
-
-
 # --- UID Generation --- #
 
 def test_uid_is_deterministic_and_unique_by_field_and_level():
@@ -224,6 +214,8 @@ def test_uid_is_deterministic_and_unique_by_field_and_level():
 def test_repr_outputs_useful_info():
     desc = FieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number", "default": 42})
     rep = repr(desc)
-    assert "depth" in rep
-    assert "number" in rep
-    assert "42" in rep
+    assert "FieldDescriptor:" in rep
+    assert "uid=" in rep
+    assert "type=" in rep
+    assert "required=" in rep
+    assert "default=" in rep

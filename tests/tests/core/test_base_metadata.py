@@ -14,21 +14,25 @@ class SampleMetadata(BaseMetadata):
         super().__init__()
 
     @classmethod
-    def from_dict(cls, data, strict = True) -> "SampleMetadata":
+    def from_dict(cls, data, strict: bool = True) -> "SampleMetadata":
         return super().from_dict(data, strict)
 
     def _required(self) -> List[str]:
-        return ["format_version", "document_type"]
+        retval = super()._required()
+        retval.append("document_type")
+        return retval
 
     def _derived_attributes(self) -> List[str]:
-        return ["document_type"]
-    
+        retval = super()._derived_attributes()
+        retval.append("document_type")
+        return retval
+
 
 # --- Test Object Instantiation --- #
 def test_valid_instantiation():
     md = SampleMetadata()
-    assert md.format_version == None
-    assert md.document_type == None
+    assert md.format_version is None
+    assert md.document_type is None
     assert md._user_defined == {}
 
 
@@ -55,7 +59,7 @@ def test_valid_required_function():
 
 def test_valid_derived_attributes_function():
     md = SampleMetadata()
-    assert len(md._derived_attributes()) == 1
+    assert len(md._derived_attributes()) == 2
 
 
 # --- Test From Dict Data Initialisation --- #
@@ -66,7 +70,7 @@ def test_valid_derived_attributes_function():
 def test_valid_data_strict_initalisation(data):
     md = SampleMetadata.from_dict(data)
     for key, val in data.items():
-        assert hasattr(md, key) != None
+        assert hasattr(md, key) is not None
         assert getattr(md, key) == val
 
 
@@ -112,7 +116,6 @@ def test_user_defined_metadata():
     assert md.format_version == "1.0.0"
     assert md.author == "Alice"
     assert md.priority == "high"
-    print(md.to_dict())
     assert md.to_dict()["author"] == "Alice"
     assert md.to_dict()["priority"] == "high"
 
@@ -122,15 +125,17 @@ def test_to_dict_only_shows_fields():
     md.format_version = "1.0.0"
     md._add_user_field("extra", "custom")
     d = md.to_dict()
+    print(md.to_dict())
     assert d["format_version"] == "1.0.0"
     assert d["extra"] == "custom"
-    assert d["document_type"] == None
+    assert d["document_type"] is None
 
 
 def test_unknown_attribute_raises():
     md = SampleMetadata()
     with pytest.raises(AttributeError):
         _ = md.unknown_field
+
 
 def test_user_field_shadowing_core_fields():
     md = SampleMetadata()
