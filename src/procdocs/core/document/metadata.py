@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
-from typing import Optional, Dict
+from typing import Optional
 
 from procdocs.core.base_metadata import BaseMetadata
 from procdocs.core.utils import is_valid_version
+from procdocs.core.validation import ValidationResult
 
 
 class DocumentMetadata(BaseMetadata):
@@ -33,6 +34,18 @@ class DocumentMetadata(BaseMetadata):
         if value is not None and not is_valid_version(value):
             raise ValueError(f"Invalid document version: '{value}'")
         self._document_version = value
+
+    @classmethod
+    def from_dict(cls, data, strict = True) -> "DocumentMetadata":
+        return super().from_dict(data, strict)
+    
+    def validate(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
+        collector = collector or ValidationResult()
+        collector = super().validate(collector=collector, strict=strict)
+        if self.document_version and not is_valid_version(str(self.document_version)):
+            msg = f"Invalid document version: '{self.document_version}'"
+            collector.report(msg, strict, ValueError)
+        return collector
 
     def _required(self):
         return ["document_type", "format_version"]

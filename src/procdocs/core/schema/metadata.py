@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
-from typing import Dict, Optional
+from typing import Optional
 
 from procdocs.core.base_metadata import BaseMetadata
 from procdocs.core.utils import is_valid_version
+from procdocs.core.validation import ValidationResult
 
 
 class DocumentSchemaMetadata(BaseMetadata):
@@ -33,6 +34,18 @@ class DocumentSchemaMetadata(BaseMetadata):
         if value is not None and not is_valid_version(value):
             raise ValueError(f"Invalid schema version: '{value}'")
         self._schema_version = value
+
+    @classmethod
+    def from_dict(cls, data, strict = True) -> "DocumentSchemaMetadata":
+        return super().from_dict(data, strict)
+    
+    def validate(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
+        collector = collector or ValidationResult()
+        collector = super().validate(collector=collector, strict=strict)
+        if self.schema_version and not is_valid_version(str(self.schema_version)):
+            msg = f"Invalid schema version: '{self.schema_version}'"
+            collector.report(msg, strict, ValueError)
+        return collector
 
     def _required(self):
         return ["schema_name", "format_version"]
