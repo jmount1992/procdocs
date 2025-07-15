@@ -1,0 +1,60 @@
+{# PROCDOCS_METADATA schema_name: test, schema_version: 0.1 #}
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{{ contents.title or "Untitled Document" }}</title>
+  <style>
+    body { font-family: sans-serif; margin: 2em; }
+    h1, h2 { border-bottom: 1px solid #ccc; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+    th, td { border: 1px solid #ccc; padding: 0.4em; text-align: left; }
+  </style>
+</head>
+<body>
+
+  <h1>{{ contents.title }}</h1>
+  <p><strong>ID:</strong> {{ contents.id }}</p>
+  <p>{{ contents.description }}</p>
+
+  {% if contents.preconditions %}
+    <h2>Preconditions</h2>
+    <ul>
+      {% for p in contents.preconditions %}
+        <li>{{ p.condition }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if contents["test-steps"] %}
+    <h2>Test Steps</h2>
+    <table>
+      <thead><tr><th>Step #</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for step in contents["test-steps"] %}
+          <tr>
+            <td>{{ step["step-number"] }}</td>
+            <td>{{ step["action"] }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  {% if contents["expected-result"] %}
+    <h2>Expected Results</h2>
+    <table>
+      <thead><tr><th>Step #</th><th>Result</th></tr></thead>
+      <tbody>
+        {% for r in contents["expected-result"] %}
+          <tr>
+            <td>{{ r["step-number"] }}</td>
+            <td>{{ r["result"] }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+</body>
+</html>
