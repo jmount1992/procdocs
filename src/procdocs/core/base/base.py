@@ -35,7 +35,7 @@ class Base(metaclass=BaseValidator):
 
     @cached_property
     def _required(self) -> List[str]:
-        """Gets the list of required attributes (rprivate names)"""
+        """Gets the list of required attributes (private names)"""
         return self._collect_class_attrs("_REQUIRED", private=True)
 
     @property
