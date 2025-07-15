@@ -14,7 +14,6 @@ class Base(metaclass=BaseValidator):
     def __init__(self) -> None:
         # Dynamically create fields based on attributes
         for attr in self._attributes:
-            print(attr)
             setattr(self, attr, None)
         self._user_defined: Dict[str, Any] = {}
 
