@@ -33,20 +33,26 @@ def test_required_properties():
     assert instance._required == ["_foo"]
 
 
-def test_dynamic_attribute_generation():
+@pytest.mark.parametrize("dynamic_gen", [True, False])
+def test_dynamic_attribute_generation(dynamic_gen):
     class ExtendedBase(Base):
         _REQUIRED = ["_foo"]
         _ATTRIBUTES = ["_foo"]
+        def __init__(self, dynamic_gen):
+            if not dynamic_gen:
+                self._foo = "x"
+            super().__init__()
         @property
         def foo(self): return self._foo
-    instance = ExtendedBase()
+    instance = ExtendedBase(dynamic_gen)
     assert hasattr(instance, "foo")
-    assert instance.foo is None
-    assert instance._foo is None
 
-    instance._foo = "x"
-    assert instance.foo == "x"
-    assert instance._foo == "x"
+    if dynamic_gen:
+        assert instance.foo is None
+        assert instance._foo is None
+    else:
+        assert instance.foo == "x"
+        assert instance._foo == "x"
 
 
 @pytest.mark.parametrize("strict", [True, False])

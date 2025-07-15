@@ -13,9 +13,11 @@ class Base(metaclass=BaseValidator):
 
     def __init__(self) -> None:
         # Dynamically create fields based on attributes
-        for attr in self._attributes:
-            setattr(self, attr, None)
+        # if they don't already exist and set to none
         self._user_defined: Dict[str, Any] = {}
+        for attr in self._attributes:
+            if not hasattr(self, attr):
+                setattr(self, attr, None)
 
     @cached_property
     def attributes(self) -> List[str]:

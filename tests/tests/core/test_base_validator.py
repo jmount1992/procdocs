@@ -14,7 +14,7 @@ class ValidBase(metaclass=BaseValidator):
         super().__init__()
 
     @property
-    def foo(self): return "x"
+    def foo(self): self._foo
 
 
 def test_valid_class_definition():
