@@ -1,23 +1,54 @@
 #!/usr/bin/env python3
 
-from typing import Optional, List, Dict, Any, Callable
+from functools import cached_property
+from typing import Optional, List, Dict, Any
 
+from procdocs.core.base.base_validator import BaseValidator
 from procdocs.core.validation import ValidationResult
 
 
-class Base:
+class Base(metaclass=BaseValidator):
+    _ATTRIBUTES: List[str] = ["_user_defined"]
+    _REQUIRED: List[str] = []
 
     def __init__(self) -> None:
+        # Dynamically create fields based on attributes
+        for attr in self._attributes:
+            print(attr)
+            setattr(self, attr, None)
         self._user_defined: Dict[str, Any] = {}
-        self._check_declared_attributes_exist(self._required)
-        self._check_declared_attributes_exist(self._derived_attributes)
 
-    def to_dict(self) -> Dict[str, str]:
+    @cached_property
+    def attributes(self) -> List[str]:
+        """Gets the list of object-defined attributes (public names)"""
+        return self._collect_class_attrs("_ATTRIBUTES", private=False)
+
+    @cached_property
+    def _attributes(self) -> List[str]:
+        """Gets the list of object-defined attributes (private names)"""
+        return self._collect_class_attrs("_ATTRIBUTES", private=True)
+
+    @cached_property
+    def required(self) -> List[str]:
+        """Gets the list of required attributes (public names)"""
+        return self._collect_class_attrs("_REQUIRED", private=False)
+
+    @cached_property
+    def _required(self) -> List[str]:
+        """Gets the list of required attributes (rprivate names)"""
+        return self._collect_class_attrs("_REQUIRED", private=True)
+
+    @property
+    def user_defined(self) -> List[str]:
+        """Gets the list of user defined attributes"""
+        return list(self._user_defined.keys())
+
+    def to_dict(self) -> Dict[str, Any]:
         base = {}
-        derived_attrs = self._derived_attributes()
-        for key in derived_attrs:
-            base[key] = getattr(self, key)
-        for key in self._user_defined:
+        for key in self.attributes:
+            if key != "user_defined":
+                base[key] = getattr(self, key)
+        for key in self.user_defined:
             base[key] = getattr(self, key)
         return base
 
@@ -45,7 +76,7 @@ class Base:
 
     def _validate_required_fields_are_set(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         collector = collector or ValidationResult()
-        required_attrs = self._required()
+        required_attrs = self.required
         missing = [attr for attr in required_attrs if getattr(self, attr, None) is None]
         if missing:
             msg = "Missing required metadata fields: " + ", ".join(f"'{m}'" for m in missing)
@@ -55,25 +86,17 @@ class Base:
     def _add_user_field(self, key: str, data: Any) -> None:
         self._user_defined[key] = data
 
-    def _required(self) -> List[str]:
-        raise NotImplementedError("Derived class must implement _required()")
-
-    def _derived_attributes(self) -> List[str]:
-        raise NotImplementedError("Derived class must implement _derived_attributes()")
-
-    def _check_declared_attributes_exist(self, attr_func: Callable[[], list[str]]) -> None:
-        """
-        Calls the given function to retrieve a list of attribute names and checks
-        whether they are valid attributes on the object. Raises an error if any are missing.
-        """
-        attr_list = attr_func()
-        missing = [a for a in attr_list if not hasattr(self, a)]
-        if missing:
-            raise AttributeError(
-                f"{attr_func.__name__}() returned invalid attribute(s): {', '.join(missing)}"
-            )
-
     def __getattr__(self, name: str) -> Any:
         if name in self._user_defined:
             return self._user_defined[name]
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+    def _collect_class_attrs(self, attr_name: str, private: bool = True) -> List[str]:
+        seen = []
+        for cls in reversed(type(self).__mro__):
+            if hasattr(cls, attr_name):
+                seen.extend(getattr(cls, attr_name))
+        unique = list(dict.fromkeys(seen))  # remove duplicates, preserve order
+        if private:
+            return unique
+        return [name.lstrip("_") for name in unique]

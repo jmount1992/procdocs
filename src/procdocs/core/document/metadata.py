@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from procdocs.core.base_metadata import BaseMetadata
+from procdocs.core.base.base_metadata import BaseMetadata
 from procdocs.core.utils import is_valid_version
 from procdocs.core.validation import ValidationResult
 

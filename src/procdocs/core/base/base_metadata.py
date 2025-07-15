@@ -2,7 +2,7 @@
 
 from typing import Optional, List, Dict, Any, Callable
 
-from procdocs.core.base import Base
+from procdocs.core.base.base import Base
 from procdocs.core.validation import ValidationResult
 from procdocs.core.utils import is_strict_semver
 
@@ -13,6 +13,9 @@ class BaseMetadata(Base):
     Stores document type, version, and format version, with validation.
     Additionally stores user-defined metadata information as attributes.
     """
+    _ATTRIBUTES: List[str] = ["_format_version"]
+    _REQUIRED: List[str] = ["_format_version"]
+
     def __init__(self):
         self._format_version: Optional[str] = None
         super().__init__()
@@ -41,9 +44,3 @@ class BaseMetadata(Base):
             msg = f"Invalid format version: '{value}'"
             collector.report(msg, strict, ValueError)
         return collector
-
-    def _required(self) -> List[str]:
-        return ["format_version"]
-
-    def _derived_attributes(self) -> List[str]:
-        return ["format_version"]

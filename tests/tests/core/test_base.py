@@ -4,13 +4,16 @@ import re
 import pytest
 from typing import List
 
-from procdocs.core.base import Base
+from procdocs.core.base.base import Base
 from procdocs.core.validation import ValidationResult
 from procdocs.core.utils import is_strict_semver
 
 
 # --- Minimal Base For Testing --- #
 class SampleBase(Base):
+    _REQUIRED: List[str] = ["format_version"]
+    _DERIVED: List[str] = ["format_version", "document_type"]
+
     def __init__(self):
         self._format_version = None
         self._document_type = None
@@ -58,19 +61,17 @@ class SampleBase(Base):
 
 # --- Test Class Abstraction --- #
 def test_not_implemented_exceptions(monkeypatch):
-    def _dummy(self):
-        return []
+    with pytest.raises(NotImplementedError, match=re.escape("must define class-level '_REQUIRED'")):
+        class InvalidBase(Base):
+            _DERIVED = []
+            def __init__(self):
+                super().__init__()
 
-    with pytest.raises(NotImplementedError, match=re.escape("Derived class must implement _required()")):
-        Base()
-
-    monkeypatch.setattr(Base, "_required", _dummy)
-    with pytest.raises(NotImplementedError, match=re.escape("Derived class must implement _derived_attributes()")):
-        Base()
-
-    monkeypatch.setattr(Base, "_derived_attributes", _dummy)
-    with pytest.raises(NotImplementedError, match=re.escape("Derived class must implement _validate_additional()")):
-        Base.from_dict({})
+    with pytest.raises(NotImplementedError, match=re.escape("must define class-level '_DERIVED'")):
+        class InvalidBase(Base):
+            _REQUIRED = []
+            def __init__(self):
+                super().__init__()
 
 
 # --- Test Object Instantiation --- #
@@ -81,9 +82,9 @@ def test_valid_instantiation():
 
 
 def test_invalid_required_fields_instantiation(monkeypatch):
-    def _required(self):
+    def _REQUIRED(self):
         return ["format_version", "document_typ"]
-    monkeypatch.setattr(SampleBase, "_required", _required)
+    monkeypatch.setattr(SampleBase, "_REQUIRED", _REQUIRED)
     with pytest.raises(AttributeError, match=re.escape("_required() returned invalid attribute")):
         SampleBase()
 

@@ -4,7 +4,7 @@ import re
 import pytest
 from typing import List
 
-from procdocs.core.base_metadata import BaseMetadata
+from procdocs.core.base.base_metadata import BaseMetadata
 
 
 # --- Minimal Subclasses For Testing --- #
