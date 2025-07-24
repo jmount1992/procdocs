@@ -17,8 +17,8 @@ def test_object_instantiation():
 def test_attributes_properties():
     instance = Base()
     assert hasattr(instance, "user_defined")
-    assert instance.attributes == ["user_defined"]
-    assert instance._attributes == ["_user_defined"]
+    assert instance.class_attributes == ["user_defined"]
+    assert instance._class_attributes == ["_user_defined"]
 
 
 def test_required_properties():
@@ -29,8 +29,8 @@ def test_required_properties():
         def foo(self): return self._foo
     instance = ExtendedBase()
     assert hasattr(instance, "foo")
-    assert instance.required == ["foo"]
-    assert instance._required == ["_foo"]
+    assert instance.required_attributes == ["foo"]
+    assert instance._required_attributes == ["_foo"]
 
 
 @pytest.mark.parametrize("dynamic_gen", [True, False])
@@ -58,7 +58,7 @@ def test_dynamic_attribute_generation(dynamic_gen):
 @pytest.mark.parametrize("strict", [True, False])
 def test_not_implemented_error(strict):
     with pytest.raises(NotImplementedError, match=re.escape("Derived class must implement _validate_additional()")):
-        Base.from_dict({}, strict=strict)
+        Base.from_dict({}, strict=strict, skip_validation=False)
 
 
 @pytest.mark.parametrize("data", [
@@ -113,8 +113,8 @@ class DummyChild(DummyParent):
 
 def test_required_and_derived_collection_across_inheritance():
     d = DummyChild()
-    assert set(d.required) == set(["a", "b"])
-    assert set(d.attributes) == set(["a", "b", "x", "y", "user_defined"])
+    assert set(d.required_attributes) == set(["a", "b"])
+    assert set(d.class_attributes) == set(["a", "b", "x", "y", "user_defined"])
 
 
 def test_get_attribute(monkeypatch):
@@ -157,7 +157,7 @@ def test_validation_collects_errors_when_not_strict():
     assert len(result) == 2 
 
     error_strs = list(result)
-    assert "Missing required metadata fields" in error_strs[0]
+    assert "Missing required fields" in error_strs[0]
     assert "a" in error_strs[0]
     assert "Test warning from _validate_additional()" in error_strs[1]
 

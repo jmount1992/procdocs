@@ -96,7 +96,7 @@ def test_reserved_fieldname_raises(fieldname):
 
 
 def test_unset_fieldname_raises():
-    with pytest.raises(ValueError, match="'fieldname' key is not set"):
+    with pytest.raises(ValueError, match="Missing required fields: 'fieldname'"):
         FieldDescriptor.from_dict({})
 
 
@@ -168,16 +168,25 @@ def test_list_with_nested_fields():
 
 def test_dict_with_nested_fields():
     desc = FieldDescriptor.from_dict({
-        "fieldname": "params",
+        "fieldname": "params1",
         "fieldtype": "dict",
         "fields": [
-            {"fieldname": "threshold", "fieldtype": "number"}
+            {"fieldname": "threshold", "fieldtype": "number"},
+            {"fieldname": "params2", "fieldtype": "dict", "fields": [{"fieldname": "threshold", "fieldtype": "number"}]}
         ]
     })
-    assert desc.is_dict()
-    assert len(desc.fields) == 1
+    assert desc.is_dict() == True
+    assert len(desc.fields) == 2
+
     assert desc.fields[0].fieldname == "threshold"
     assert desc.fields[0].fieldtype == FieldType.NUMBER
+
+    assert desc.fields[1].is_dict() == True
+    assert desc.fields[1].fieldname == "params2"
+    assert desc.fields[1].fieldtype == FieldType.DICT
+
+    assert desc.fields[1].fields[0].fieldname == "threshold"
+    assert desc.fields[1].fields[0].fieldtype == FieldType.NUMBER
 
 
 @pytest.mark.parametrize("ftype", ["string", "number", "boolean", "enum"])

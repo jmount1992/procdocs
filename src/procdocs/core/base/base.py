@@ -15,27 +15,27 @@ class Base(metaclass=BaseValidator):
         # Dynamically create fields based on attributes
         # if they don't already exist and set to none
         self._user_defined: Dict[str, Any] = {}
-        for attr in self._attributes:
+        for attr in self._class_attributes:
             if not hasattr(self, attr):
                 setattr(self, attr, None)
 
     @cached_property
-    def attributes(self) -> List[str]:
+    def class_attributes(self) -> List[str]:
         """Gets the list of object-defined attributes (public names)"""
         return self._collect_class_attrs("_ATTRIBUTES", private=False)
 
     @cached_property
-    def _attributes(self) -> List[str]:
+    def _class_attributes(self) -> List[str]:
         """Gets the list of object-defined attributes (private names)"""
         return self._collect_class_attrs("_ATTRIBUTES", private=True)
 
     @cached_property
-    def required(self) -> List[str]:
+    def required_attributes(self) -> List[str]:
         """Gets the list of required attributes (public names)"""
         return self._collect_class_attrs("_REQUIRED", private=False)
 
     @cached_property
-    def _required(self) -> List[str]:
+    def _required_attributes(self) -> List[str]:
         """Gets the list of required attributes (private names)"""
         return self._collect_class_attrs("_REQUIRED", private=True)
 
@@ -46,7 +46,7 @@ class Base(metaclass=BaseValidator):
 
     def to_dict(self) -> Dict[str, Any]:
         base = {}
-        for key in self.attributes:
+        for key in self.class_attributes:
             if key != "user_defined":
                 base[key] = getattr(self, key)
         for key in self.user_defined:
@@ -54,7 +54,7 @@ class Base(metaclass=BaseValidator):
         return base
 
     @classmethod
-    def from_dict(cls, data: Dict, strict: bool = True) -> "Base":
+    def from_dict(cls, data: Dict, strict: bool = True, skip_validation: bool = False) -> "Base":
         obj = cls()
         for key, val in data.items():
             norm_key = key.replace('-', '_')
@@ -63,7 +63,8 @@ class Base(metaclass=BaseValidator):
                 setattr(obj, norm_key, val)
             else:
                 obj._add_user_field(key, val)
-        obj.validate(strict=strict)
+        if not skip_validation:
+            obj.validate(strict=strict)
         return obj
 
     def validate(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
@@ -77,10 +78,10 @@ class Base(metaclass=BaseValidator):
 
     def _validate_required_fields_are_set(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
         collector = collector or ValidationResult()
-        required_attrs = self.required
+        required_attrs = self.required_attributes
         missing = [attr for attr in required_attrs if getattr(self, attr, None) is None]
         if missing:
-            msg = "Missing required metadata fields: " + ", ".join(f"'{m}'" for m in missing)
+            msg = "Missing required fields: " + ", ".join(f"'{m}'" for m in missing)
             collector.report(msg, strict, ValueError)
         return collector
 

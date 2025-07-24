@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Optional
+from typing import Optional, List
 
 from procdocs.core.base.base_metadata import BaseMetadata
 from procdocs.core.utils import is_valid_version
@@ -11,11 +11,13 @@ class DocumentSchemaMetadata(BaseMetadata):
     """
     Metadata class for JSON document schemas.
     """
+    _REQUIRED: List[str] = ["_schema_name"]
+    _ATTRIBUTES: List[str] = ["_schema_name", "_schema_version"]
 
     def __init__(self):
-        super().__init__()
         self._schema_name: Optional[str] = None
         self._schema_version: Optional[str] = None
+        super().__init__()
 
     @property
     def schema_name(self) -> Optional[str]:
@@ -23,7 +25,7 @@ class DocumentSchemaMetadata(BaseMetadata):
 
     @schema_name.setter
     def schema_name(self, value: Optional[str]) -> None:
-        self._schema_name = value
+        self._schema_name = self._validate_schema_name(value, strict=True)
 
     @property
     def schema_version(self) -> Optional[str]:
@@ -31,24 +33,20 @@ class DocumentSchemaMetadata(BaseMetadata):
 
     @schema_version.setter
     def schema_version(self, value: Optional[str]) -> None:
-        if value is not None and not is_valid_version(value):
-            raise ValueError(f"Invalid schema version: '{value}'")
         self._schema_version = value
 
     @classmethod
     def from_dict(cls, data, strict = True) -> "DocumentSchemaMetadata":
         return super().from_dict(data, strict)
     
-    def validate(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
+    def _validate_additional(self, collector, strict):
         collector = collector or ValidationResult()
-        collector = super().validate(collector=collector, strict=strict)
-        if self.schema_version and not is_valid_version(str(self.schema_version)):
-            msg = f"Invalid schema version: '{self.schema_version}'"
+        collector = self._validate_schema_name(collector, strict)
+        return super()._validate_additional(collector, strict)
+
+    def _validate_schema_name(self, value: str, collector: ValidationResult = None, strict: bool = True) -> ValidationResult:
+        collector = collector or ValidationResult()
+        if value is None:
+            msg = f"Invalid schema name: '{value}'"
             collector.report(msg, strict, ValueError)
         return collector
-
-    def _required(self):
-        return ["schema_name", "format_version"]
-
-    def _derived_attributes(self):
-        return ["schema_name", "schema_version"]

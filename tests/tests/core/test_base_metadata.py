@@ -29,8 +29,8 @@ def test_format_version_properties(version, valid):
 
 @pytest.mark.parametrize("strict", [True, False])
 @pytest.mark.parametrize("data,exception,errors", [
-    ({}, "Missing required metadata fields", ["Missing required metadata fields: 'format_version'", "Invalid format version: 'None'"]),
-    ({"format_versio": "0.0.0"}, "Missing required metadata fields", ["Missing required metadata fields: 'format_version'", "Invalid format version: 'None'"]),
+    ({}, "Missing required fields", ["Missing required fields: 'format_version'", "Invalid format version: 'None'"]),
+    ({"format_versio": "0.0.0"}, "Missing required fields", ["Missing required fields: 'format_version'", "Invalid format version: 'None'"]),
     ({"format_version": "0.0"}, "Invalid format version", ["Invalid format version: '0.0'"])
 ])
 def test_invalid_from_dict(strict, data, exception, errors):
