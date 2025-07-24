@@ -25,7 +25,8 @@ class DocumentSchemaMetadata(BaseMetadata):
 
     @schema_name.setter
     def schema_name(self, value: Optional[str]) -> None:
-        self._schema_name = self._validate_schema_name(value, strict=True)
+        self._validate_schema_name(value, strict=True)
+        self._schema_name = value
 
     @property
     def schema_version(self) -> Optional[str]:
@@ -39,10 +40,11 @@ class DocumentSchemaMetadata(BaseMetadata):
     def from_dict(cls, data, strict = True) -> "DocumentSchemaMetadata":
         return super().from_dict(data, strict)
     
-    def _validate_additional(self, collector, strict):
+    def _validate_additional(self, collector, strict) -> ValidationResult:
         collector = collector or ValidationResult()
-        collector = self._validate_schema_name(collector, strict)
-        return super()._validate_additional(collector, strict)
+        collector = super()._validate_additional(collector, strict)
+        collector = self._validate_schema_name(self.schema_name, collector, strict)
+        return collector
 
     def _validate_schema_name(self, value: str, collector: ValidationResult = None, strict: bool = True) -> ValidationResult:
         collector = collector or ValidationResult()

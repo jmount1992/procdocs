@@ -30,19 +30,19 @@ class DocumentSchema:
 
     @property
     def structure(self) -> Dict[int, FieldDescriptor]:
-        """Returns the ordered structure of the schema as a dict of meta field descriptors."""
+        """Returns the ordered structure of the schema as a dict of field descriptors."""
         return self._structure
 
     @property
     def schema_name(self) -> Optional[str]:
         if self.metadata:
-            return self.metadata["schema_name"]
+            return self.metadata.schema_name
         return None
 
     @property
-    def version(self) -> Optional[str]:
+    def format_version(self) -> Optional[str]:
         if self.metadata:
-            return self.metadata["meta_schema_version"]
+            return self.metadata.format_version
         return None
 
     @classmethod
@@ -58,10 +58,16 @@ class DocumentSchema:
             DocumentSchema: A fully parsed schema instance.
         """
         ms = cls()
+
+        # Document Metadata
         ms._metadata = DocumentSchemaMetadata.from_dict(data.get("metadata", {}), strict=strict)
+
+        # Document Schema Structure
         raw_structure = data.get("structure", [])
         field_descriptors = [FieldDescriptor.from_dict(fielddata, strict=strict) for fielddata in raw_structure]
         ms._structure = {idx: fd for idx, fd in enumerate(field_descriptors)}
+        
+        # Validate
         ms.validate(strict=strict)
         return ms
 
@@ -100,8 +106,8 @@ class DocumentSchema:
         - Structure must be well-formed and contain no duplicate field names.
         """
         collector = collector or ValidationResult()
-        self._validate_metadata(collector=collector, strict=strict)
-        self._validate_structure(collector=collector, strict=strict)
+        collector = self._validate_metadata(collector=collector, strict=strict)
+        collector = self._validate_structure(collector=collector, strict=strict)
         return collector
 
     def _validate_metadata(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:

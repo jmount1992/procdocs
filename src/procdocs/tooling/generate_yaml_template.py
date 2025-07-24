@@ -35,7 +35,7 @@ def generate_yaml_template(meta_schema: DocumentSchema, filepath: Path) -> None:
     """
     lines = []
     lines.append("metadata:")
-    lines.append(f"  document_type: {meta_schema.metadata.document_type}")
+    lines.append(f"  document_type: {meta_schema.metadata.schema_name}")
     lines.append("  document_version: 0.0.0")
     lines.append(f"  format_version: {meta_schema.metadata.format_version}")
     lines.append("")

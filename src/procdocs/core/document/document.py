@@ -67,6 +67,7 @@ class Document:
         except Exception as e:
             errors.append(f"Metadata validation failed: {e}")
 
+        # Validate Fields
         def validate_field(desc, value, path):
             fieldname = desc.fieldname or "<unnamed>"
             full_path = ".".join(path + [fieldname])

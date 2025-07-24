@@ -33,7 +33,7 @@ class BaseMetadata(Base):
     def from_dict(cls, data: Dict, strict: bool = True):
         return super().from_dict(data, strict)
 
-    def _validate_additional(self, collector, strict):
+    def _validate_additional(self, collector, strict) -> ValidationResult:
         collector = collector or ValidationResult()
         collector = self._validate_format_version(self.format_version, collector=collector, strict=strict)
         return collector

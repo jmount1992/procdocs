@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Optional
+from typing import Optional, List
 
 from procdocs.core.base.base_metadata import BaseMetadata
 from procdocs.core.utils import is_valid_version
@@ -11,6 +11,8 @@ class DocumentMetadata(BaseMetadata):
     """
     Metadata class for YAML document instances.
     """
+    _REQUIRED: List[str] = ["_document_type"]
+    _ATTRIBUTES: List[str] = ["_document_type", "_document_version"]
 
     def __init__(self):
         super().__init__()
@@ -31,24 +33,13 @@ class DocumentMetadata(BaseMetadata):
 
     @document_version.setter
     def document_version(self, value: Optional[str]) -> None:
-        if value is not None and not is_valid_version(value):
-            raise ValueError(f"Invalid document version: '{value}'")
         self._document_version = value
 
     @classmethod
     def from_dict(cls, data, strict = True) -> "DocumentMetadata":
         return super().from_dict(data, strict)
     
-    def validate(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
+    def _validate_additional(self, collector, strict) -> ValidationResult:
         collector = collector or ValidationResult()
-        collector = super().validate(collector=collector, strict=strict)
-        if self.document_version and not is_valid_version(str(self.document_version)):
-            msg = f"Invalid document version: '{self.document_version}'"
-            collector.report(msg, strict, ValueError)
+        collector = super()._validate_additional(collector, strict)
         return collector
-
-    def _required(self):
-        return ["document_type", "format_version"]
-
-    def _derived_attributes(self):
-        return ["document_type", "document_version"]
