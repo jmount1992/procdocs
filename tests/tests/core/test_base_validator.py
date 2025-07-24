@@ -17,11 +17,14 @@ class ValidBase(metaclass=BaseValidator):
     def foo(self): self._foo
 
 
+# --- VALID CLASS DEFINITIION TESTS --- #
 def test_valid_class_definition():
+    """Simple instantiation of a valid object"""
     assert hasattr(ValidBase(), "foo")
 
 
 def test_valid_subclass_without_extending():
+    """Check a valid derived class doesn't throw any errors."""
     class Sub(ValidBase):
         _REQUIRED = []
         _ATTRIBUTES = []
@@ -29,6 +32,7 @@ def test_valid_subclass_without_extending():
 
 
 def test_multiple_inheritance_ok():
+    """Test multiple inheritance doesn't throw errors."""
     class DummyMixin:
         pass
     class Mixed(ValidBase, DummyMixin):
@@ -47,6 +51,7 @@ def test_empty_lists_are_valid(baseclass, metaclass):
         _ATTRIBUTES = []
 
 
+# --- INVALID CLASS DEFINITION TESTS --- #
 @pytest.mark.parametrize("baseclass, metaclass", [
     (object, BaseValidator),
     (ValidBase, type)
