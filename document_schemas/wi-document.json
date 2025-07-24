@@ -1,0 +1,19 @@
+{
+    "metadata": {
+        "schema_name": "wi-document",
+        "format_version": "0.0.0"
+    },
+
+    "structure": [
+        { "fieldname": "id" },
+        { "fieldname": "title" },
+        { "fieldname": "description", "required": false },
+        {
+            "fieldname": "includes",
+            "fieldtype": "list",
+            "fields": [
+                { "fieldname": "filepath" }
+            ]
+        }
+    ]
+}
