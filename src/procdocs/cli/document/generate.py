@@ -25,7 +25,7 @@ def main(args):
 
 
 def register(subparser):
-    parser = subparser.add_parser("template", help="Generate YAML template from a JSON schema.")
+    parser = subparser.add_parser("generate", help="Generate YAML document template from a JSON schema.")
     parser.add_argument("schema", help="The schema name or path.")
     parser.add_argument("output_path", help="Path to save the generated YAML document.")
     parser.set_defaults(func=main)

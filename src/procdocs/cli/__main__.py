@@ -2,7 +2,8 @@
 
 import argparse
 
-from procdocs.cli import document, schema
+from procdocs.cli import schema, render_template
+from procdocs.cli.document import generate, validate, render
 
 
 def main():
@@ -10,8 +11,14 @@ def main():
     subparsers = parser.add_subparsers(dest="command")
 
     # Register high-level command groups
+    # Register main document functions
+    generate.register(subparsers)
+    validate.register(subparsers)
+    render.register(subparsers)
+
+    # Register schema and render template sub-commands
     schema.register(subparsers)
-    document.register(subparsers)
+    render_template.register(subparsers)
 
     args = parser.parse_args()
     if hasattr(args, "func"):

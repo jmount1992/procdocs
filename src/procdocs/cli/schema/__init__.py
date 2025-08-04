@@ -15,10 +15,10 @@ def register(subparser: argparse._SubParsersAction):
     schema_subparsers = schema_parser.add_subparsers(dest="schema_cmd")
 
     # Add default function to print help if no document subcommand provided
-    def document_default(args):
+    def schema_default(args):
         schema_parser.print_help()
         return 1
-    schema_parser.set_defaults(func=document_default)
+    schema_parser.set_defaults(func=schema_default)
 
     # schema list
     list_parser = schema_subparsers.add_parser("list", help="List available schemas")

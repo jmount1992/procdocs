@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
-import json
 import os
 from pathlib import Path
 from typing import Dict, Any
 
+from procdocs.core.utils import merge_dicts, load_json_file
+
 DEFAULT_CONFIG = {
     "schema_paths": ["./document_schemas"],
+    "render_template_paths": ["./render_templates"],
     "default_schema": None,
     "logging": {
         "level": "INFO"
@@ -14,25 +16,6 @@ DEFAULT_CONFIG = {
 }
 
 GLOBAL_CONFIG_PATH = Path.home() / ".config" / "procdocs" / "config.json"
-
-
-def load_json_file(path: Path) -> Dict[str, Any]:
-    """Load JSON file from path. Returns empty dict if missing."""
-    if not path.exists():
-        return {}
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
-    """Recursively merge two dictionaries (override wins)."""
-    result = dict(base)
-    for k, v in override.items():
-        if isinstance(v, dict) and isinstance(result.get(k), dict):
-            result[k] = merge_dicts(result[k], v)
-        else:
-            result[k] = v
-    return result
 
 
 def load_config() -> Dict[str, Any]:
