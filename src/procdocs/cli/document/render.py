@@ -1,7 +1,5 @@
-import argparse
-import sys
-import json
-import yaml
+#!/usr/bin/env python3
+
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
@@ -38,7 +36,6 @@ def main(args):
         # Render with Jinja2
         template_path = Path(args.template_path)
         template_metadata = extract_schema_metadata(template_path)
-        
         print(template_metadata)
 
         env = Environment(loader=FileSystemLoader(template_path.parent))
@@ -48,8 +45,6 @@ def main(args):
             metadata=document.metadata.to_dict(),
             contents=document._contents,
         )
-
-        
 
         # Output PDF
         output_path = Path(args.output_path)
@@ -62,7 +57,7 @@ def main(args):
         return 1
 
 
-def register(subparser: argparse._SubParsersAction):
+def register(subparser):
     parser = subparser.add_parser("render", help="Render a document instance to PDF using a Jinja2 template.")
     parser.add_argument("doc_path", help="Path to the document YAML instance.")
     parser.add_argument("schema_path", help="Path to the JSON schema.")

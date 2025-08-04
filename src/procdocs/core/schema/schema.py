@@ -66,7 +66,7 @@ class DocumentSchema:
         raw_structure = data.get("structure", [])
         field_descriptors = [FieldDescriptor.from_dict(fielddata, strict=strict) for fielddata in raw_structure]
         ms._structure = {idx: fd for idx, fd in enumerate(field_descriptors)}
-        
+
         # Validate
         ms.validate(strict=strict)
         return ms

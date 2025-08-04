@@ -31,7 +31,7 @@
                     "fieldname": "condition"
                 },
                 {
-                    "fieldnam": "associated_instruction",
+                    "fieldname": "associated_instruction",
                     "fieldtype": "dict",
                     "required": false,
                     "fields": [
