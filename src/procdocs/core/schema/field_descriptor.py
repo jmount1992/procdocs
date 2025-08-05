@@ -1,244 +1,110 @@
 #!/usr/bin/env python3
-
 import hashlib
 import re
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, List, Optional
+
+from pydantic import BaseModel, Field, root_validator, validator
 
 from procdocs.core.schema.field_type import FieldType
-from procdocs.core.utils import RESERVED_FIELDNAMES, FIELDNAME_ALLOWED_PATTERN, is_valid_fieldname_pattern
-from procdocs.core.validation import ValidationResult
-from procdocs.core.base.base import Base
+from procdocs.core.utils import (
+    RESERVED_FIELDNAMES,
+    FIELDNAME_ALLOWED_PATTERN,
+    is_valid_fieldname_pattern
+)
 
 
-class FieldDescriptor(Base):
+class FieldDescriptor(BaseModel):
     """
     Represents a single field descriptor in a document schema.
-
-    This class models the constraints, type, and structure of a single field
-    within a schema and supports nested definitions for compound types.
     """
-    _ATTRIBUTES: List[str] = [
-        "_fieldname",
-        "_raw_fieldtype",
-        "_fieldtype",
-        "_required",
-        "_description",
-        "_options",
-        "_pattern",
-        "_default",
-        "_fields",
-        "_uid"
-    ]
-    _REQUIRED: List[str] = [
-        "_fieldname"
-    ]
 
-    def __init__(self):
-        """
-        Initializes a new, empty FieldDescriptor. Fields must be populated via `from_dict()`.
-        """
-        self._fieldname: Optional[str] = None
-        self._raw_fieldtype: Optional[str] = None
-        self._fieldtype: Optional[FieldType] = None
-        self._required: Optional[bool] = None
-        self._description: Optional[str] = None
-        self._options: Optional[List[str]] = None
-        self._pattern: Optional[str] = None
-        self._default: Optional[Any] = None
-        self._fields: List["FieldDescriptor"] = []
-        self._uid: Optional[str] = None
-        super().__init__()
+    fieldname: str = Field(..., description="The name of the field")
+    fieldtype: FieldType = Field(FieldType.STRING, description="Field type")
+    required: bool = Field(default=True, description="Whether this field is required")
+    description: Optional[str] = Field(default=None, description="Human-readable description")
+    options: Optional[List[str]] = Field(default=None, description="Valid options for enum fields")
+    pattern: Optional[str] = Field(default=None, description="Regex pattern for validation")
+    default: Optional[Any] = Field(default=None, description="Default value")
+    fields: Optional[List["FieldDescriptor"]] = Field(default=None, description="Nested field descriptors")
+    uid: Optional[str] = Field(default=None, description="Unique identifier")
 
-    ##################
-    ### PROPERTIES ###
-    ##################
+    class Config:
+        # Enable recursion for forward references
+        arbitrary_types_allowed = True
+        validate_assignment = True
 
-    @property
-    def fieldname(self) -> Optional[str]:
-        """Returns the field name for this descriptor."""
-        return self._fieldname
+    # # --- Validators ---
+    # @validator("uid", always=True)
+    # def compute_uid(cls, v, values):
+    #     """Automatically generate UID if not provided."""
+    #     if v:
+    #         return v
+    #     fieldname = values.get("fieldname", "")
+    #     level = values.get("__nesting_level", 0)  # custom injection for recursion if needed
+    #     raw = f"{fieldname}:{level}"
+    #     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:10]
 
-    @property
-    def raw_fieldtype(self) -> Optional[str]:
-        """Returns the raw unparsed field type"""
-        return self._raw_fieldtype
+    # @validator("fieldname")
+    # def validate_fieldname(cls, v):
+    #     if not v:
+    #         raise ValueError("The 'fieldname' key is not set")
+    #     if v in RESERVED_FIELDNAMES:
+    #         raise ValueError(f"'{v}' is a reserved name and cannot be used")
+    #     if not is_valid_fieldname_pattern(v):
+    #         raise ValueError(
+    #             f"The fieldname '{v}' must match the pattern '{FIELDNAME_ALLOWED_PATTERN.pattern}'"
+    #         )
+    #     return v
 
-    @property
-    def fieldtype(self) -> Optional[FieldType]:
-        """Returns the parsed field type (e.g., STRING, NUMBER, LIST)."""
-        return self._fieldtype
+    # @validator("fieldtype", pre=True)
+    # def parse_fieldtype(cls, v):
+    #     # Accepts strings or FieldType enums and converts to FieldType
+    #     return FieldType.parse(v)
 
-    @property
-    def required(self) -> Optional[bool]:
-        """Returns whether the field is required."""
-        return self._required
+    # @validator("pattern")
+    # def validate_regex_pattern(cls, v):
+    #     if v:
+    #         try:
+    #             re.compile(v)
+    #         except re.error as e:
+    #             raise ValueError(f"Invalid regex pattern: {e}")
+    #     return v
 
-    @property
-    def description(self) -> Optional[str]:
-        """Returns a human-readable description of the field, if provided."""
-        return self._description
+    # @root_validator
+    # def validate_fieldtype_logic(cls, values):
+    #     fieldtype = values.get("fieldtype")
+    #     options = values.get("options")
+    #     fields = values.get("fields")
 
-    @property
-    def options(self) -> Optional[List[str]]:
-        """Returns the list of valid options (for enum fields only)."""
-        return self._options
+    #     # ENUM must define options
+    #     if fieldtype == FieldType.ENUM and not options:
+    #         raise ValueError("ENUM fieldtype must define 'options'")
 
-    @property
-    def pattern(self) -> Optional[str]:
-        """Returns the regex pattern constraint, if defined."""
-        return self._pattern
+    #     # Nested fields only allowed for list/dict
+    #     if fields and not (fieldtype in (FieldType.LIST, FieldType.DICT)):
+    #         raise ValueError("Nested 'fields' only allowed for 'list' or 'dict' types")
 
-    @property
-    def default(self) -> Optional[Any]:
-        """Returns the default value, if any."""
-        return self._default
+    #     return values
 
-    @property
-    def fields(self) -> List["FieldDescriptor"]:
-        """Returns the list of nested meta field descriptors (for list/dict types)."""
-        return self._fields
-
-    @property
-    def uid(self) -> Optional[str]:
-        """Returns the unique ID of the descriptor, derived from name and nesting level."""
-        return self._uid
-
-    def is_fieldtype(self, value: Union[str, FieldType, Tuple[Union[str, FieldType], ...]]) -> bool:
-        """
-        Checks if the field's type matches one or more given types.
-
-        Args:
-            value: A FieldType, string, or tuple/list of those.
-
-        Returns:
-            bool: True if the fieldtype matches any of the given values.
-        """
-        if isinstance(value, (tuple, list)):
-            return any(self.is_fieldtype(v) for v in value)
-        return self.fieldtype == FieldType.parse(value)
+    def is_fieldtype(self, *types) -> bool:
+        """Convenience helper like original implementation."""
+        return self.fieldtype in [FieldType.parse(t) for t in types]
 
     def is_list(self) -> bool:
-        """Returns True if the fieldtype is LIST."""
-        return self.is_fieldtype(FieldType.LIST)
+        return self.fieldtype == FieldType.LIST
 
     def is_dict(self) -> bool:
-        """Returns True if the fieldtype is DICT."""
-        return self.is_fieldtype(FieldType.DICT)
+        return self.fieldtype == FieldType.DICT
 
     def is_enum(self) -> bool:
-        """Returns True if the fieldtype is ENUM."""
-        return self.is_fieldtype(FieldType.ENUM)
-
-    @classmethod
-    def from_dict(cls, data: Dict, level: int = 0, strict: bool = True) -> "FieldDescriptor":
-        """
-        Creates a FieldDescriptor from a dictionary.
-
-        Args:
-            data (Dict): A dictionary conforming to meta-schema field definition.
-            level (int): The nesting level (used for UID computation).
-            strict (bool): Whether to validate the field on load.
-
-        Returns:
-            FieldDescriptor: Parsed and optionally validated descriptor.
-        """
-        # Set defaults
-        data["fieldtype"] = data.get("fieldtype", "string")
-        data["raw_fieldtype"] = data.get("fieldtype", "string")
-        data["required"] = data.get("required", True)
-
-        # Parse dictionary
-        fd: "FieldDescriptor" = super().from_dict(data, strict=False, skip_validation=True)
-        
-        # Set UID and parse fieldtype
-        fd._uid = fd._compute_uid(fd._fieldname, level)
-        fd._fieldtype = FieldType.parse(fd._raw_fieldtype)
-
-        # Correctly set fields
-        fields = data.get("fields", [])
-        if fields:
-            fd._fields = [cls.from_dict(child, level=level + 1, strict=False) for child in fields]
-
-        # Validate
-        fd.validate(strict=strict)
-        return fd
-
-    def _validate_additional(self, collector, strict) -> ValidationResult:
-        collector = collector or ValidationResult()
-        collector = self._validate_fieldname(collector=collector, strict=strict)
-        collector = self._validate_fieldtype(collector=collector, strict=strict)
-        collector = self._validate_pattern(collector=collector, strict=strict)
-        collector = self._validate_required(collector=collector, strict=strict)
-        if self.is_list() or self.is_dict() and self.fields:
-            for child in self.fields:
-                child.validate(collector=collector, strict=strict)
-        return collector
-   
-    ########################
-    ### HELPER FUNCTIONS ###
-    ########################
-    def _compute_uid(self, fieldname: str, level: int = 0) -> str:
-        """
-        Generates a short unique identifier for the field.
-
-        Args:
-            fieldname (str): The name of the field.
-            level (int): Nesting level in the structure.
-
-        Returns:
-            str: A 10-character hash.
-        """
-        raw = f"{fieldname}:{level}"
-        return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:10]
-
-    def _validate_fieldname(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
-        """Checks that the fieldname exists and is not reserved."""
-        collector = collector or ValidationResult()
-        if not self.fieldname:
-            msg = f"Field descriptor {self.uid} is invalid. The 'fieldname' key is not set."
-            collector.report(msg, strict, ValueError)
-
-        if self.fieldname and self.fieldname in RESERVED_FIELDNAMES:
-            msg = f"Field descriptor {self.uid} is invalid. '{self.fieldname}' is a reserved name and cannot be used."
-            collector.report(msg, strict, ValueError)
-
-        if self.fieldname and not is_valid_fieldname_pattern(self.fieldname):
-            msg = f"Field descriptor {self.uid} is invalid. The fieldname '{self.fieldname}' must match the pattern '{FIELDNAME_ALLOWED_PATTERN.pattern}'."
-            collector.report(msg, strict, ValueError)
-        return collector
-
-    def _validate_fieldtype(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
-        """Checks the validity of the fieldtype and nested field logic."""
-        if self.fieldtype is FieldType.INVALID:
-            msg = f"Field descriptor {self.uid} is invalid. Invalid fieldtype '{self._raw_fieldtype}'."
-            collector.report(msg, strict, ValueError)  
-
-        if len(self.fields) != 0 and not (self.is_list() or self.is_dict()):
-            msg = f"Field descriptor {self.uid} is invalid. Nested 'fields' only allowed for 'list' or 'dict' types."
-            collector.report(msg, strict, ValueError)
-
-        if not self.options and self.is_enum():
-            msg = f"Field descriptor {self.uid} is invalid. The ENUM fieldtype must define 'options'."
-            collector.report(msg, strict, ValueError)
-        return collector
-
-    def _validate_pattern(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
-        """Validates the regex pattern if specified."""
-        if self.pattern:
-            try:
-                re.compile(self.pattern)
-            except re.error as e:
-                msg = f"Field descriptor {self.uid} is invalid. Invalid regex pattern '{e}'."
-                collector.report(msg, strict, ValueError)
-        return collector
-
-    def _validate_required(self, collector: Optional[ValidationResult] = None, strict: bool = True) -> ValidationResult:
-        """Ensures the 'required' attribute is a boolean."""
-        if self.required and not isinstance(self.required, bool):
-            msg = f"Field descriptor {self.uid} is invalid. The 'required' must be boolean."
-            collector.report(msg, strict, ValueError)
-        return collector
+        return self.fieldtype == FieldType.ENUM
 
     def __repr__(self):
-        """Returns a compact string representation of the field descriptor."""
-        return f"<FieldDescriptor: {self.fieldname} (uid={self.uid}, type={self.fieldtype}, required={self.required}, default={self.default})>"
+        return (
+            f"<FieldDescriptor: {self.fieldname} "
+            f"(uid={self.uid}, type={self.fieldtype}, required={self.required}, default={self.default})>"
+        )
+
+
+# Allow self-referencing
+FieldDescriptor.update_forward_refs()
