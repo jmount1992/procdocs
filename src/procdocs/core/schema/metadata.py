@@ -37,16 +37,16 @@ class DocumentSchemaMetadata(BaseMetadata):
         self._schema_version = value
 
     @classmethod
-    def from_dict(cls, data, strict = True) -> "DocumentSchemaMetadata":
+    def from_dict(cls, data, strict=True) -> "DocumentSchemaMetadata":
         return super().from_dict(data, strict)
-    
+
     def _validate_additional(self, collector, strict) -> ValidationResult:
         collector = collector or ValidationResult()
         collector = super()._validate_additional(collector, strict)
         collector = self._validate_schema_name(self.schema_name, collector, strict)
         return collector
 
-    def _validate_schema_name(self, value: str, collector: ValidationResult = None, strict: bool = True) -> ValidationResult:
+    def _validate_schema_name(self, value: str, collector: ValidationResult=None, strict: bool=True) -> ValidationResult:
         collector = collector or ValidationResult()
         if value is None:
             msg = f"Invalid schema name: '{value}'"

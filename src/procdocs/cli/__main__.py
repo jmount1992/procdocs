@@ -14,11 +14,11 @@ def main():
     # Register main document functions
     generate.register(subparsers)
     validate.register(subparsers)
-    render.register(subparsers)
+    # render.register(subparsers)
 
     # Register schema and render template sub-commands
     schema.register(subparsers)
-    render_template.register(subparsers)
+    # render_template.register(subparsers)
 
     args = parser.parse_args()
     if hasattr(args, "func"):

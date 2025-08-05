@@ -15,8 +15,7 @@ def list_schemas(args) -> int:
     found = []
 
     for path in schema_paths:
-        found.extend((Path(path) / f).resolve() 
-                     for f in Path(path).glob("*.json"))
+        found.extend((Path(path) / f).resolve() for f in Path(path).glob("*.json"))
 
     if not found:
         print("No schemas found in configured paths.")
