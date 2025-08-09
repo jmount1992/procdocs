@@ -5,7 +5,7 @@ import yaml
 
 from procdocs.core.config import load_config
 from procdocs.core.utils import find_schema_path
-from procdocs.core.schema.schema import DocumentSchema
+from procdocs.core.schema.document_schema import DocumentSchema
 from procdocs.core.document.document import Document
 
 SUPPORTED_EXTENSIONS = {'.yml', '.yaml'}

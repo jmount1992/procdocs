@@ -1,45 +1,44 @@
 #!/usr/bin/env python3
 
-from typing import Optional, List
+from pydantic import Field
 
 from procdocs.core.base.base_metadata import BaseMetadata
-from procdocs.core.utils import is_valid_version
-from procdocs.core.validation import ValidationResult
+from procdocs.core.base.types import SchemaLikeName, FreeFormVersion
 
 
 class DocumentMetadata(BaseMetadata):
     """
-    Metadata class for YAML document instances.
+    Metadata for concrete YAML documents.
+
+    - `document_type` (required): canonical, case-insensitive reference to the target
+      schema's name. Normalized to lowercase and must match ``SCHEMA_NAME_ALLOWED_RE``.
+    - `document_version` (optional): user-managed, free-form label for this document
+      instance; whitespace is trimmed and blank values become `None`.
+
+    Notes
+    -----
+    - Inherits from `BaseMetadata`, which:
+        - enforces strict semver for `format_version`,
+        - forbids unknown top-level fields (`extra="forbid"`),
+        - provides an `extensions: dict[str, Any]` bag for user-defined metadata.
+    - Use `document_type` to select/validate against the corresponding schema.
+
+    Example
+    -------
+    >>> from procdocs.core.document.metadata import DocumentMetadata
+    >>> md = DocumentMetadata(
+    ...     format_version="0.0.1",
+    ...     document_type="Test.Schema-01",
+    ...     document_version="  1.0-draft  ",
+    ...     extensions={"author": "alice"}
+    ... )
+    >>> md.document_type
+    'test.schema-01'
+    >>> md.document_version
+    '1.0-draft'
+    >>> md.extensions["author"]
+    'alice'
     """
-    _REQUIRED: List[str] = ["_document_type"]
-    _ATTRIBUTES: List[str] = ["_document_type", "_document_version"]
 
-    def __init__(self):
-        super().__init__()
-        self._document_type: Optional[str] = None
-        self._document_version: Optional[str] = None
-
-    @property
-    def document_type(self) -> Optional[str]:
-        return self._document_type
-
-    @document_type.setter
-    def document_type(self, value: Optional[str]) -> None:
-        self._document_type = value
-
-    @property
-    def document_version(self) -> Optional[str]:
-        return self._document_version
-
-    @document_version.setter
-    def document_version(self, value: Optional[str]) -> None:
-        self._document_version = value
-
-    @classmethod
-    def from_dict(cls, data, strict = True) -> "DocumentMetadata":
-        return super().from_dict(data, strict)
-    
-    def _validate_additional(self, collector, strict) -> ValidationResult:
-        collector = collector or ValidationResult()
-        collector = super()._validate_additional(collector, strict)
-        return collector
+    document_type: SchemaLikeName = Field(...)
+    document_version: FreeFormVersion = Field(default=None, description="Version label for this document instance (user managed; free-form)")

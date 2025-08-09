@@ -1,35 +1,61 @@
 #!/usr/bin/env python3
-
 import pytest
+
 from procdocs.core.schema.field_type import FieldType
 
 
-# --- Field Type Validation --- #
+# --- Parser Helpers --- #
 
-
-@pytest.mark.parametrize("value, expected", [
+@pytest.mark.parametrize("raw,expected", [
     ("string", FieldType.STRING),
-    ("number", FieldType.NUMBER),
+    (" String ", FieldType.STRING),
+    ("NUMBER", FieldType.NUMBER),
     ("boolean", FieldType.BOOLEAN),
     ("list", FieldType.LIST),
     ("dict", FieldType.DICT),
     ("enum", FieldType.ENUM),
+    (FieldType.STRING, FieldType.STRING),
+    (None, FieldType.INVALID),
+    ("unknown", FieldType.INVALID),
+    (123, FieldType.INVALID),
 ])
-def test_valid_parse_fieldtype(value, expected):
-    assert FieldType.parse(value) == expected
-    assert FieldType.parse(value.capitalize()) == expected
-    assert FieldType.parse(value.upper()) == expected
-    assert FieldType.parse(value.title()) == expected
-    assert FieldType.parse(f"  {value}  ") == expected
+def test_parsers(raw, expected):
+    assert FieldType.parse(raw) is expected
+    if expected == FieldType.INVALID:
+        assert FieldType.try_parse(raw) is None
+    else:
+        assert FieldType.try_parse(raw) is expected
 
 
-@pytest.mark.parametrize("value, expected", [
-    ("strng", FieldType.INVALID),
-    (1, FieldType.NUMBER),
-    (None, FieldType.BOOLEAN),
-    (3.14, FieldType.LIST),
-    (FieldType, FieldType.DICT),
-    (FieldType.parse, FieldType.ENUM),
+# --- From Python Type --- #
+
+@pytest.mark.parametrize("typ,expected", [
+    (str, FieldType.STRING),
+    (int, FieldType.NUMBER),
+    (float, FieldType.NUMBER),
+    (bool, FieldType.BOOLEAN),
+    (list, FieldType.LIST),
+    (dict, FieldType.DICT),
+    (set, FieldType.INVALID),
+    (tuple, FieldType.INVALID),
 ])
-def test_invalid_parse_fieldtype(value, expected):
-    assert FieldType.parse(value) == FieldType.INVALID
+def test_from_python_type(typ, expected):
+    assert FieldType.from_python_type(typ) is expected
+
+
+# --- Introspection helpers --- #
+
+@pytest.mark.parametrize("ft,scalar,container,children,numeric", [
+    (FieldType.STRING, True,  False, False, False),
+    (FieldType.NUMBER, True,  False, False, True),
+    (FieldType.BOOLEAN, True, False, False, False),
+    (FieldType.ENUM,   True,  False, False, False),
+    (FieldType.LIST,   False, True,  True,  False),
+    (FieldType.DICT,   False, True,  True,  False),
+    (FieldType.INVALID, False, False, False, False),
+])
+def test_introspection_helpers(ft, scalar, container, children, numeric):
+    assert ft.is_scalar() == scalar
+    assert ft.is_container() == container
+    assert ft.allows_children() == children
+    assert ft.is_numeric() == numeric

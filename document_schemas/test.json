@@ -23,7 +23,7 @@
             "default": "other"
         },
         {
-            "fieldname": "pre-conditions",
+            "fieldname": "preconditions",
             "fieldtype": "list",
             "required": false,
             "fields": [

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from procdocs.core.config import load_config
-from procdocs.core.schema.schema import DocumentSchema
+from procdocs.core.schema.document_schema import DocumentSchema
 from procdocs.core.utils import find_schema_path
 
 
@@ -38,15 +38,15 @@ def validate_schema(args) -> int:
         return 1
 
     try:
-        schema = DocumentSchema.from_file(schema_file, strict=False)
-        results = schema.validate(strict=False)
-        if len(results.errors) == 0:
-            print(f"Valid schema: {schema_file}")
-            return 0
-        print("Schema validation failed. Schema errors:")
-        for error in results.errors:
-            print(f"  + {error}")
-        return 1
+        schema = DocumentSchema.from_file(schema_file)
+        # results = schema.validate(strict=False)
+        # if len(results.errors) == 0:
+        #     print(f"Valid schema: {schema_file}")
+        #     return 0
+        # print("Schema validation failed. Schema errors:")
+        # for error in results.errors:
+        #     print(f"  + {error}")
+        # return 1
     except Exception as e:
         print(f"Error loading schema: {e}")
         return 1

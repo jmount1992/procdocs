@@ -4,7 +4,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 
-from procdocs.core.schema.schema import DocumentSchema
+from procdocs.core.schema.document_schema import DocumentSchema
 from procdocs.core.document.document import Document
 
 

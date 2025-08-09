@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional, Dict
 import yaml
 
-from procdocs.core.schema.schema import DocumentSchema
+from procdocs.core.schema.document_schema import DocumentSchema
 from procdocs.core.document.metadata import DocumentMetadata
 
 

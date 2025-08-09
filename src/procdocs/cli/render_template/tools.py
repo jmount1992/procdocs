@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from procdocs.core.config import load_config
-from procdocs.core.schema.schema import DocumentSchema
+from procdocs.core.schema.document_schema import DocumentSchema
 from procdocs.core.utils import find_schema_path
 
 

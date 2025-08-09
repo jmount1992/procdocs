@@ -1,230 +1,180 @@
 #!/usr/bin/env python3
 
+import hashlib
 import pytest
+from pydantic import ValidationError, ConfigDict, BaseModel
 
-from procdocs.core.utils import RESERVED_FIELDNAMES
-from procdocs.core.schema.field_descriptor import FieldDescriptor, FieldType
-
-
-# --- Object Instantiation -- #
-def test_object_instantiation():
-    fd = FieldDescriptor()
-    assert fd.fieldname is None
-    assert fd.fieldtype is None
-    assert fd.required is None
-    assert fd.description is None
-    assert fd.options is None
-    assert fd.pattern is None
-    assert fd.default is None
-    assert fd.fields == []
-    assert fd.uid is None
+from procdocs.core.schema.field_descriptor import FieldDescriptor
+from procdocs.core.schema.field_type import FieldType
 
 
-# --- Test Field Type Handling --- #
-@pytest.mark.parametrize("ft_input, expected_enum, extra", [
-    ("string", FieldType.STRING, {}),
-    (FieldType.STRING, FieldType.STRING, {}),
-    ("number", FieldType.NUMBER, {}),
-    (FieldType.NUMBER, FieldType.NUMBER, {}),
-    ("boolean", FieldType.BOOLEAN, {}),
-    (FieldType.BOOLEAN, FieldType.BOOLEAN, {}),
-    ("list", FieldType.LIST, {}),
-    (FieldType.LIST, FieldType.LIST, {}),
-    ("dict", FieldType.DICT, {}),
-    (FieldType.DICT, FieldType.DICT, {}),
-    ("enum", FieldType.ENUM, {"options": ["A", "B"]}),
-    (FieldType.ENUM, FieldType.ENUM, {"options": ["A", "B"]}),
+# Helper: ensure assignment validation runs, like in your real models
+class Dummy(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+    fd: FieldDescriptor
+
+
+# --- Construction: scalars --- #
+
+def test_scalar_minimal_ok():
+    fd = FieldDescriptor(fieldname="id")
+    assert fd.fieldname == "id"
+    assert fd.fieldtype is FieldType.STRING
+    assert fd.required is True
+    assert isinstance(fd.uid, str) and len(fd.uid) == 10
+
+
+@pytest.mark.parametrize("bad", [None, "", "   "])
+def test_fieldname_missing_or_blank_raises(bad):
+    with pytest.raises(ValidationError, match="The 'fieldname' key is not set"):
+        FieldDescriptor(fieldname=bad)  # type: ignore[arg-type]
+
+
+def test_reserved_fieldname_raises(monkeypatch):
+    # inject a reserved name for test
+    from procdocs.core import constants as C
+    monkeypatch.setattr(C, "RESERVED_FIELDNAMES", set(["metadata", "structure", "reserved_test"]))
+    with pytest.raises(ValidationError, match="reserved name"):
+        FieldDescriptor(fieldname="reserved_test")
+
+
+def test_fieldname_pattern_violation_raises():
+    bad = "bad name"
+    import re
+    from procdocs.core.constants import FIELDNAME_ALLOWED_PATTERN
+    expected = re.escape(f"must match the pattern '{FIELDNAME_ALLOWED_PATTERN.pattern}'")
+    with pytest.raises(ValidationError, match=expected):
+        FieldDescriptor(fieldname=bad)
+
+
+@pytest.mark.parametrize("raw,ok", [
+    ("string", True),
+    ("enum", True),
+    ("list", True),
+    ("dict", True),
+    ("number", True),
+    ("boolean", True),
+    ("nope", False),
 ])
-def test_fieldtype_and_type_check_helpers(ft_input, expected_enum, extra):
-    data = {"fieldname": "name", "fieldtype": ft_input, **extra}
-    desc = FieldDescriptor.from_dict(data)
-    assert desc.fieldtype == expected_enum
-
-    # Check is_fieldtype behavior
-    assert desc.is_fieldtype(expected_enum) is True
-    assert desc.is_fieldtype(expected_enum.value) is True
-    assert desc.is_fieldtype([expected_enum]) is True
-
-    # Check negative cases
-    others = [ft for ft in FieldType if ft != expected_enum and ft != FieldType.INVALID]
-    for other in others:
-        assert desc.is_fieldtype(other) is False
+def test_fieldtype_parse_and_invalid(raw, ok):
+    if ok:
+        if raw == "enum":
+            fd = FieldDescriptor(fieldname="x", fieldtype=raw, options=["a", "b"])
+        else:
+            fd = FieldDescriptor(fieldname="x", fieldtype=raw)
+        assert fd.fieldtype is FieldType.parse(raw)
+    else:
+        with pytest.raises(ValidationError, match="Unknown fieldtype"):
+            FieldDescriptor(fieldname="x", fieldtype=raw)
 
 
-def test_invalid_fieldtype_is_rejected():
-    with pytest.raises(ValueError, match="Invalid fieldtype 'blorp'"):
-        FieldDescriptor.from_dict({"fieldname": "name", "fieldtype": "blorp"})
-
-
-def test_fieldtype_defaults_to_string_if_not_provided():
-    desc = FieldDescriptor.from_dict({"fieldname": "undecided"})
-    assert desc.fieldtype == FieldType.STRING
-
-
-def test_is_fieldtype_with_multiple_values():
-    desc = FieldDescriptor.from_dict({"fieldname": "setting", "fieldtype": "enum", "options": ["A", "B"]})
-    assert desc.is_fieldtype(("enum", "dict")) is True
-    assert desc.is_fieldtype(["number", "list"]) is False
-
-
-@pytest.mark.parametrize("fieldtype, expected", [
-    (FieldType.STRING, {"is_list": False, "is_dict": False, "is_enum": False}),
-    (FieldType.NUMBER, {"is_list": False, "is_dict": False, "is_enum": False}),
-    (FieldType.BOOLEAN, {"is_list": False, "is_dict": False, "is_enum": False}),
-    (FieldType.LIST,   {"is_list": True,  "is_dict": False, "is_enum": False}),
-    (FieldType.DICT,   {"is_list": False, "is_dict": True,  "is_enum": False}),
-    (FieldType.ENUM,   {"is_list": False, "is_dict": False, "is_enum": True}),
-])
-def test_fieldtype_flags(fieldtype, expected):
-    fd = FieldDescriptor()
-    fd._fieldtype = fieldtype
-    assert fd.is_list() == expected["is_list"]
-    assert fd.is_dict() == expected["is_dict"]
-    assert fd.is_enum() == expected["is_enum"]
-
-
-# --- Field Name Validation --- #
-def test_valid_fieldname():
-    desc = FieldDescriptor.from_dict({"fieldname": "name"})
-    assert desc.fieldname == "name"
-
-
-@pytest.mark.parametrize("fieldname", list(RESERVED_FIELDNAMES))
-def test_reserved_fieldname_raises(fieldname):
-    with pytest.raises(ValueError, match="is a reserved name"):
-        FieldDescriptor.from_dict({"fieldname": fieldname, "fieldtype": "string"})
-
-
-def test_unset_fieldname_raises():
-    with pytest.raises(ValueError, match="Missing required fields: 'fieldname'"):
-        FieldDescriptor.from_dict({})
-
-
-# --- Required, Default, Options, Description --- #
-
-def test_default_and_description_and_options_are_stored():
-    desc = FieldDescriptor.from_dict({
-        "fieldname": "sensor",
-        "fieldtype": "string",
-        "default": "imu",
-        "description": "Type of sensor",
-        "options": ["imu", "gps"]
-    })
-    assert desc.default == "imu"
-    assert desc.description == "Type of sensor"
-    assert desc.options == ["imu", "gps"]
-
-
-@pytest.mark.parametrize("required", [True, False])
-def test_required_field_parsing(required):
-    desc = FieldDescriptor.from_dict({
-        "fieldname": "active",
-        "fieldtype": "boolean",
-        "required": required
-    })
-    assert desc.required is required
-
-
-def test_required_field_invalid_type():
-    with pytest.raises(ValueError, match="must be boolean"):
-        FieldDescriptor.from_dict({"fieldname": "active", "fieldtype": "boolean", "required": "yes"})
-
-
-# --- Regex Pattern Validation --- #
-
+# --- Regex pattern validation --- #
 def test_valid_regex_pattern_is_accepted():
-    desc = FieldDescriptor.from_dict({
-        "fieldname": "serial",
-        "fieldtype": "string",
-        "pattern": r"^[A-Z]{3}-\d{4}$"
-    })
-    assert desc.pattern == r"^[A-Z]{3}-\d{4}$"
+    # Ensures the 'pattern' validator covers the non-error branch
+    fd = FieldDescriptor(fieldname="code", pattern=r"^\d+$")
+    assert fd.pattern == r"^\d+$"
 
 
 def test_invalid_regex_pattern_raises():
-    with pytest.raises(ValueError, match=r"Invalid regex pattern '.*unterminated character set.*'"):
-        FieldDescriptor.from_dict({
-            "fieldname": "broken",
-            "fieldtype": "string",
-            "pattern": "[a-z"
-        })
+    with pytest.raises(ValidationError, match="Invalid regex pattern"):
+        FieldDescriptor(fieldname="code", pattern="(")  # unbalanced
 
 
-# --- Nested Fields Validation --- #
+# --- ENUM rules --- #
 
-def test_list_with_nested_fields():
-    desc = FieldDescriptor.from_dict({
-        "fieldname": "items",
-        "fieldtype": "list",
-        "fields": [
-            {"fieldname": "value", "fieldtype": "number"}
+def test_enum_requires_non_empty_unique_options():
+    with pytest.raises(ValidationError, match="must define 'options'"):
+        FieldDescriptor(fieldname="status", fieldtype="enum")
+    with pytest.raises(ValidationError, match="duplicates"):
+        FieldDescriptor(fieldname="status", fieldtype="enum", options=["a", "a"])
+    with pytest.raises(ValidationError, match="must not contain empty"):
+        FieldDescriptor(fieldname="status", fieldtype="enum", options=["", "ok"])
+    fd = FieldDescriptor(fieldname="status", fieldtype="enum", options=["ok", "fail"])
+    assert fd.options == ["ok", "fail"]
+
+
+# --- Children rules --- #
+
+def test_children_only_allowed_for_list_or_dict():
+    with pytest.raises(ValidationError, match="only allowed for 'list' or 'dict'"):
+        FieldDescriptor(fieldname="x", fieldtype="string", fields=[FieldDescriptor(fieldname="y")])
+
+
+def test_list_must_have_exactly_one_child_when_provided():
+    # zero children when provided
+    with pytest.raises(ValidationError, match="at least one child"):
+        FieldDescriptor(fieldname="items", fieldtype="list", fields=[])
+
+    # exactly one child is OK
+    fd = FieldDescriptor(fieldname="items", fieldtype="list", fields=[FieldDescriptor(fieldname="element")])
+    assert fd.is_list() and fd.fields and len(fd.fields) == 1
+
+
+def test_dict_may_have_children_and_not_empty_when_provided():
+    with pytest.raises(ValidationError, match="at least one child"):
+        FieldDescriptor(fieldname="cfg", fieldtype="dict", fields=[])
+    fd = FieldDescriptor(fieldname="cfg", fieldtype="dict", fields=[FieldDescriptor(fieldname="k")])
+    assert fd.is_dict() and fd.fields and len(fd.fields) == 1
+
+
+def test_list_with_multiple_child_fields_allowed():
+    """LIST type can define multiple child fields when describing dict-like elements."""
+    fd = FieldDescriptor(
+        fieldname="steps",
+        fieldtype="list",
+        fields=[
+            FieldDescriptor(fieldname="step_number", fieldtype="number"),
+            FieldDescriptor(fieldname="action", fieldtype="string"),
+            FieldDescriptor(fieldname="notes", fieldtype="string", required=False)
         ]
-    })
-    assert desc.is_list()
-    assert len(desc.fields) == 1
-    assert desc.fields[0].fieldname == "value"
-    assert desc.fields[0].fieldtype == FieldType.NUMBER
+    )
+
+    assert fd.is_list()
+    assert fd.fieldtype == FieldType.LIST
+    assert len(fd.fields) == 3
+    # Child fields should be FieldDescriptor instances
+    for child in fd.fields:
+        assert isinstance(child, FieldDescriptor)
 
 
-def test_dict_with_nested_fields():
-    desc = FieldDescriptor.from_dict({
-        "fieldname": "params1",
-        "fieldtype": "dict",
-        "fields": [
-            {"fieldname": "threshold", "fieldtype": "number"},
-            {"fieldname": "params2", "fieldtype": "dict", "fields": [{"fieldname": "threshold", "fieldtype": "number"}]}
-        ]
-    })
-    assert desc.is_dict() == True
-    assert len(desc.fields) == 2
+# --- Assignment validation via wrapper model --- #
 
-    assert desc.fields[0].fieldname == "threshold"
-    assert desc.fields[0].fieldtype == FieldType.NUMBER
-
-    assert desc.fields[1].is_dict() == True
-    assert desc.fields[1].fieldname == "params2"
-    assert desc.fields[1].fieldtype == FieldType.DICT
-
-    assert desc.fields[1].fields[0].fieldname == "threshold"
-    assert desc.fields[1].fields[0].fieldtype == FieldType.NUMBER
+def test_assignment_fieldname_is_normalized_and_validated():
+    w = Dummy(fd=FieldDescriptor(fieldname="ok"))
+    with pytest.raises(ValidationError, match="must match the pattern"):
+        w.fd.fieldname = "bad name"
+    w.fd.fieldname = "  good_name  "
+    assert w.fd.fieldname == "good_name"
 
 
-@pytest.mark.parametrize("ftype", ["string", "number", "boolean", "enum"])
-def test_scalar_fieldtypes_reject_nested_fields(ftype):
-    with pytest.raises(ValueError, match="Nested 'fields' only allowed for 'list' or 'dict' types"):
-        FieldDescriptor.from_dict({
-            "fieldname": "bad_scalar",
-            "fieldtype": ftype,
-            "fields": [{"fieldname": "oops", "fieldtype": "string"}]
-        })
+def test_options_assignment_revalidated():
+    w = Dummy(fd=FieldDescriptor(fieldname="status", fieldtype="enum", options=["ok"]))
+    with pytest.raises(ValidationError, match="duplicates"):
+        w.fd.options = ["a", "a"]
 
 
-def test_enum_field_requires_options():
-    with pytest.raises(ValueError, match="ENUM fieldtype must define 'options'"):
-        FieldDescriptor.from_dict({
-            "fieldname": "mode",
-            "fieldtype": "enum"
-        })
+# --- Helper methods coverage --- #
+def test_is_fieldtype_helper_accepts_str_and_enum_member():
+    fd = FieldDescriptor(fieldname="qty", fieldtype="number")
+    assert fd.is_fieldtype("number")
+    assert fd.is_fieldtype(FieldType.NUMBER)
+    assert not fd.is_fieldtype("string", FieldType.BOOLEAN)
+
+def test_is_enum_helper_true_and_false():
+    e = FieldDescriptor(fieldname="status", fieldtype="enum", options=["ok", "fail"])
+    s = FieldDescriptor(fieldname="name", fieldtype="string")
+    assert e.is_enum() is True
+    assert s.is_enum() is False
 
 
-# --- UID Generation --- #
+# --- UID path-based branch --- #
+def test_uid_uses_path_when_set():
+    fd = FieldDescriptor(fieldname="id")
+    uid_fallback = fd.uid  # based on (fieldname, nesting_level)
 
-def test_uid_is_deterministic_and_unique_by_field_and_level():
-    a = FieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number"})
-    b = FieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number"})
-    assert a.uid == b.uid  # same level, same name
+    # Simulate DocumentSchema assigning canonical path
+    fd._path = "root/section/id"  # PrivateAttr is a normal attribute at runtime
+    expected = hashlib.sha1("root/section/id".encode("utf-8")).hexdigest()[:10]
 
-    c = FieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number"}, level=1)
-    assert c.uid != a.uid  # different level
-
-
-# --- __repr__() Behavior --- #
-
-def test_repr_outputs_useful_info():
-    desc = FieldDescriptor.from_dict({"fieldname": "depth", "fieldtype": "number", "default": 42})
-    rep = repr(desc)
-    assert "FieldDescriptor:" in rep
-    assert "uid=" in rep
-    assert "type=" in rep
-    assert "required=" in rep
-    assert "default=" in rep
+    assert fd.uid != uid_fallback
+    assert fd.uid == expected

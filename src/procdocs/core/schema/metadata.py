@@ -1,54 +1,33 @@
 #!/usr/bin/env python3
 
-from typing import Optional, List
+from pydantic import Field
 
 from procdocs.core.base.base_metadata import BaseMetadata
-from procdocs.core.utils import is_valid_version
-from procdocs.core.validation import ValidationResult
+from procdocs.core.base.types import SchemaLikeName, FreeFormVersion
 
 
-class DocumentSchemaMetadata(BaseMetadata):
+class SchemaMetadata(BaseMetadata):
     """
-    Metadata class for JSON document schemas.
+    Metadata for JSON *document schemas*.
+
+    - `schema_name` (required): canonical, case-insensitive identifier for the schema.
+      The value is normalized to lowercase and must match ``SCHEMA_NAME_ALLOWED_RE``.
+    - `schema_version` (optional): free-form, trimmed only.
+
+    Example
+    -------
+    >>> from procdocs.core.schema.metadata import SchemaMetadata
+    >>> md = SchemaMetadata(
+    ...     format_version="0.0.1",
+    ...     schema_name="Test.Schema-01",
+    ...     schema_version=" 0.3 ",
+    ...     extensions={"owner": "QA Team"}
+    ... )
+    >>> md.schema_name
+    'test.schema-01'
+    >>> md.schema_version
+    '0.3'
     """
-    _REQUIRED: List[str] = ["_schema_name"]
-    _ATTRIBUTES: List[str] = ["_schema_name", "_schema_version"]
 
-    def __init__(self):
-        self._schema_name: Optional[str] = None
-        self._schema_version: Optional[str] = None
-        super().__init__()
-
-    @property
-    def schema_name(self) -> Optional[str]:
-        return self._schema_name
-
-    @schema_name.setter
-    def schema_name(self, value: Optional[str]) -> None:
-        self._validate_schema_name(value, strict=True)
-        self._schema_name = value
-
-    @property
-    def schema_version(self) -> Optional[str]:
-        return self._schema_version
-
-    @schema_version.setter
-    def schema_version(self, value: Optional[str]) -> None:
-        self._schema_version = value
-
-    @classmethod
-    def from_dict(cls, data, strict=True) -> "DocumentSchemaMetadata":
-        return super().from_dict(data, strict)
-
-    def _validate_additional(self, collector, strict) -> ValidationResult:
-        collector = collector or ValidationResult()
-        collector = super()._validate_additional(collector, strict)
-        collector = self._validate_schema_name(self.schema_name, collector, strict)
-        return collector
-
-    def _validate_schema_name(self, value: str, collector: ValidationResult=None, strict: bool=True) -> ValidationResult:
-        collector = collector or ValidationResult()
-        if value is None:
-            msg = f"Invalid schema name: '{value}'"
-            collector.report(msg, strict, ValueError)
-        return collector
+    schema_name: SchemaLikeName = Field(...)
+    schema_version: FreeFormVersion = Field(default=None, description="Version label for this schema instance (user managed; free-form)")
