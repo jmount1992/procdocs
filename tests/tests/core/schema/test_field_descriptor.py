@@ -107,12 +107,10 @@ def test_children_keys_not_allowed_for_scalar_types():
 
 
 def test_list_requires_item():
-    with pytest.raises(ValidationError, match="list requires a 'spec' block"):
-        FieldDescriptor(fieldname="items", fieldtype="list")
-    # with item provided it's OK
-    fd = FieldDescriptor(fieldname="items", fieldtype="list", item={"fieldname": "element"})
+    fd = FieldDescriptor(fieldname="tags", fieldtype="list")
     dumped = fd.model_dump()
-    assert dumped["item"]["fieldname"] == "element"
+    # Canonical dump for default list[str] has no extra keys
+    assert dumped == {"fieldname": "tags", "fieldtype": "list", "required": True}
 
 
 def test_dict_requires_fields_and_not_empty():
@@ -140,9 +138,18 @@ def test_list_of_dict_with_multiple_fields():
         },
     )
 
+    # Internal normalization is still item->dict(...):
+    assert fd.spec.item.fieldtype == FieldType.DICT
+
     dumped = fd.model_dump()
-    assert dumped["item"]["fieldtype"] == "dict"
-    assert [f["fieldname"] for f in dumped["item"]["fields"]] == ["step_number", "action", "notes"]
+
+    # Author-friendly dump: 'fields' (no 'item')
+    assert dumped["fieldtype"] == "list"
+    assert "item" not in dumped
+    assert "fields" in dumped and isinstance(dumped["fields"], list)
+
+    names = [f["fieldname"] for f in dumped["fields"]]
+    assert names == ["step_number", "action", "notes"]
 
 
 # --- Assignment validation via wrapper model --- #

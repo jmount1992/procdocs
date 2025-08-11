@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Optional, Dict, Type
+from typing import Any, Dict, Type
 
 from pydantic import (
     BaseModel,
@@ -28,18 +28,19 @@ from procdocs.core.schema.field_specs import (
     rebuild_specs,
 )
 from procdocs.core import constants as C
+    # C.DEFAULT_TEXT_ENCODING, C.RESERVED_FIELDNAMES, C.FIELDNAME_ALLOWED_PATTERN
 from procdocs.core.utils import is_valid_fieldname_pattern
 
 
 # Registry of which *flat* keys belong to which FieldType.
-# For LIST we accept only "fields" (author never sees 'item').
+# For LIST we accept "item" (canonical) and "fields" (authoring sugar for dict elements).
 SPEC_REGISTRY: Dict[FieldType, tuple[Type[BaseModel], set[str]]] = {
     FieldType.STRING: (StringSpec, {"pattern"}),
     FieldType.NUMBER: (NumberSpec, set()),
     FieldType.BOOLEAN: (BooleanSpec, set()),
     FieldType.ENUM:   (EnumSpec, {"options"}),
     FieldType.DICT:   (DictSpec, {"fields"}),
-    FieldType.LIST:   (ListSpec, {"fields"}),
+    FieldType.LIST:   (ListSpec, {"item", "fields"}),
     FieldType.REF:    (RefSpec, {"cardinality", "allow_globs", "must_exist", "base_dir", "extensions"}),
 }
 
@@ -48,8 +49,8 @@ class FieldDescriptor(BaseModel):
     """
     One field in a document meta‑schema.
 
-    Authoring model:
-      - Users write type‑specific keys at the top level (flat).
+    Authoring model (flat JSON):
+      - Users write type‑specific keys at the top level.
       - We pack them into a typed `spec` based on `fieldtype`.
       - When serializing, we flatten `spec` back to the top level.
 
@@ -60,8 +61,8 @@ class FieldDescriptor(BaseModel):
       - string:   pattern
       - enum:     options
       - dict:     fields (list[FieldDescriptor])
-      - list:     fields (list[FieldDescriptor])  -> list of dicts with these fields
-                   (if omitted: list of strings)
+      - list:     item (FieldDescriptor), OR authoring sugar: fields (list[FieldDescriptor])
+                  (no item shown when elements are dicts; default list is list[str])
       - ref:      cardinality, allow_globs, must_exist, base_dir, extensions
     """
 
@@ -78,7 +79,7 @@ class FieldDescriptor(BaseModel):
     # Per-type spec (packed/unpacked automatically)
     spec: FieldSpec | None = Field(default=None, description="Type-specific parameters")
 
-    # --- Pre-parse: pack flat keys into spec --- #
+    # --- Pre-parse: pack flat keys into spec -------------------------------- #
     @model_validator(mode="before")
     @classmethod
     def _pack_flat_spec(cls, data: Any):
@@ -107,34 +108,52 @@ class FieldDescriptor(BaseModel):
             other_keys = set().union(*[ks for t, (_, ks) in SPEC_REGISTRY.items() if t != ft])
             suspicious = stray & other_keys
             if suspicious:
-                # Render like "['pattern']" to match existing tests
+                # Render like "['pattern']" to match tests
                 allowed_fmt = "[" + ", ".join(repr(k) for k in sorted(allowed_keys)) + "]"
                 raise ValueError(
                     f"Unexpected key(s) for fieldtype '{ft.value}': {sorted(suspicious)}. "
                     f"Allowed: {allowed_fmt}"
                 )
 
-        # Synthesize spec from flat keys if provided
+        # Synthesize spec from flat keys when provided
         if has_flat and not has_spec:
+            # For lists, support authoring sugar: 'fields' instead of 'item'
+            if ft == FieldType.LIST and "fields" in present_flat and "item" not in present_flat:
+                item_fd = {
+                    # synthesize internal name so FieldDescriptor validation passes
+                    "fieldname": f"{(data.get('fieldname') or 'item')}_item",
+                    "fieldtype": "dict",
+                    "fields": present_flat["fields"],
+                }
+                present_flat = {"item": item_fd}
+
+            # If list has item but it's missing a fieldname, synthesize one
+            if ft == FieldType.LIST and "item" in present_flat:
+                it = present_flat["item"]
+                if isinstance(it, dict) and "fieldname" not in it:
+                    it = {**it, "fieldname": f"{(data.get('fieldname') or 'item')}_item"}
+                    present_flat["item"] = it
+
             synth = {"kind": ft.value, **present_flat}
             # Remove flat keys from top-level and insert 'spec'
             data = {k: v for k, v in data.items() if k not in allowed_keys}
             data["spec"] = synth
 
-        # Also support minimal list authoring: fieldtype=list with no fields -> list[str]
+        # Minimal list authoring: no item/fields/spec -> default to list[str]
         if not has_flat and not has_spec and ft == FieldType.LIST:
-            data["spec"] = {"kind": "list"}  # fields omitted => default scalar list (str)
+            data["spec"] = {"kind": "list", "item": {"fieldname": f"{(data.get('fieldname') or 'item')}_item",
+                                                      "fieldtype": "string"}}
 
         return data
 
-    # --- Computed UID --- #
+    # --- Computed UID -------------------------------------------------------- #
     @computed_field  # type: ignore[prop-decorator]
     @property
     def uid(self) -> str:
         raw_encode = self._path.encode(C.DEFAULT_TEXT_ENCODING)
         return hashlib.sha1(raw_encode).hexdigest()[:10]
 
-    # --- Validators --- #
+    # --- Validators ---------------------------------------------------------- #
 
     @field_validator("fieldtype", mode="before")
     @classmethod
@@ -167,12 +186,11 @@ class FieldDescriptor(BaseModel):
                 FieldType.NUMBER: NumberSpec(),
                 FieldType.BOOLEAN: BooleanSpec(),
                 FieldType.REF:    RefSpec(),
-                FieldType.LIST:   ListSpec(),  # default scalar list (str)
             }
             if self.fieldtype in defaults:
                 self.spec = defaults[self.fieldtype]
             else:
-                # enum/dict require explicit spec (options/children)
+                # enum/list/dict require explicit spec (options/children)
                 raise ValueError(f"{self.fieldtype.value} requires a 'spec' block")
 
         if getattr(self.spec, "kind", None) != self.fieldtype.value:
@@ -186,10 +204,9 @@ class FieldDescriptor(BaseModel):
             if len(set(opts)) != len(opts):
                 raise ValueError("ENUM 'options' contain duplicates")
 
-        # DictSpec: min_length enforced by model; ListSpec: fields optional
         return self
 
-    # --- Serializer: flatten spec back to top-level --- #
+    # --- Serializer: flatten spec back to top-level -------------------------- #
     @model_serializer(mode="plain")
     def _dump_flat(self):
         base = {
@@ -199,6 +216,7 @@ class FieldDescriptor(BaseModel):
             "description": self.description,
             "default": self.default,
         }
+
         _, keys = SPEC_REGISTRY[self.fieldtype]
         spec_dict = self.spec.model_dump() if self.spec else {}
         flat_spec: Dict[str, Any] = {}
@@ -209,9 +227,29 @@ class FieldDescriptor(BaseModel):
 
         elif self.fieldtype == FieldType.LIST:
             spec: ListSpec = self.spec  # type: ignore[assignment]
-            if spec.fields:
-                flat_spec["fields"] = [fd._dump_flat() for fd in spec.fields]
-            # else: scalar list default -> emit nothing extra
+            item_fd = spec.item
+
+            if item_fd.fieldtype == FieldType.DICT:
+                # Author-friendly sugar: emit "fields" only
+                dict_spec: DictSpec = item_fd.spec  # type: ignore[assignment]
+                flat_spec["fields"] = [fd._dump_flat() for fd in dict_spec.fields]
+            else:
+                # Scalar/enum/ref element. If it's the default string with no constraints, emit nothing.
+                if item_fd.fieldtype == FieldType.STRING:
+                    str_spec: StringSpec = item_fd.spec  # type: ignore[assignment]
+                    if str_spec.pattern is None:
+                        # default list[str] -> no extra keys
+                        pass
+                    else:
+                        # string with pattern -> emit 'item' but hide its fieldname
+                        item_dump = item_fd._dump_flat()
+                        item_dump.pop("fieldname", None)
+                        flat_spec["item"] = item_dump
+                else:
+                    # number/boolean/enum/ref -> emit 'item' but hide its fieldname
+                    item_dump = item_fd._dump_flat()
+                    item_dump.pop("fieldname", None)
+                    flat_spec["item"] = item_dump
 
         else:
             # scalar/enums/refs: just copy allowed keys (pattern/options/ref knobs)

@@ -26,26 +26,30 @@
             "fieldname": "preconditions",
             "fieldtype": "list",
             "required": false,
-            "fields": [
-                {
-                    "fieldname": "condition"
-                },
-                {
-                    "fieldname": "associated_instruction",
-                    "fieldtype": "dict",
-                    "required": false,
-                    "fields": [
-                        { "fieldname": "filepath" },
-                        { "fieldname": "id" }
-                    ]
-                }
-            ]
+            "item": {
+                "fieldtype": "dict",
+                "required": false,
+                "fields": [
+                    {
+                        "fieldname": "condition"
+                    },
+                    {
+                        "fieldname": "associated_instruction",
+                        "fieldtype": "dict",
+                        "required": false,
+                        "fields": [
+                            { "fieldname": "filepath" },
+                            { "fieldname": "id" }
+                        ]
+                    }
+                ]
+            }
         },
         {
             "fieldname": "test_steps",
             "fieldtype": "list",
             "fields": [
-                { "fieldname": "step_number", "fieldtype": "number", "pattern": "^\\d+$" },
+                { "fieldname": "step_number", "fieldtype": "number" },
                 { "fieldname": "action" },
                 {
                     "fieldname": "associated_instruction",

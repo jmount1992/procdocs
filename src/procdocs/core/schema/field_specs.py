@@ -36,14 +36,9 @@ class DictSpec(BaseModel):
 
 class ListSpec(BaseModel):
     kind: Literal["list"] = "list"
-    # AUTHORING MODEL:
-    # - If `fields` is provided: each list element is a dict with these fields
-    # - If `fields` is omitted: list of strings (default scalar list)
+    # Canonical internal model: exactly one element schema repeated.
     # NOTE: forward ref to FieldDescriptor to avoid import cycle
-    fields: Optional[List["FieldDescriptor"]] = Field(
-        default=None,
-        description="Schema of each list element as a dict (omit for list[str])",
-    )
+    item: "FieldDescriptor" = Field(..., description="Schema describing each list element")
 
 
 class RefSpec(BaseModel):
