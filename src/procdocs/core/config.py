@@ -7,9 +7,8 @@ from typing import Dict, Any
 from procdocs.core.utils import merge_dicts, load_json_file
 
 DEFAULT_CONFIG = {
-    "schema_paths": ["./document_schemas"],
-    "render_template_paths": ["./render_templates"],
-    "default_schema": None,
+    "schema_paths": [str(Path("./document_schemas").resolve())],
+    "render_template_paths": [str(Path("./render_templates").resolve())],
     "logging": {
         "level": "INFO"
     }

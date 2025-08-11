@@ -32,13 +32,14 @@ from procdocs.core.utils import is_valid_fieldname_pattern
 
 
 # Registry of which *flat* keys belong to which FieldType.
+# For LIST we accept only "fields" (author never sees 'item').
 SPEC_REGISTRY: Dict[FieldType, tuple[Type[BaseModel], set[str]]] = {
     FieldType.STRING: (StringSpec, {"pattern"}),
     FieldType.NUMBER: (NumberSpec, set()),
     FieldType.BOOLEAN: (BooleanSpec, set()),
     FieldType.ENUM:   (EnumSpec, {"options"}),
-    FieldType.LIST:   (ListSpec, {"item"}),
     FieldType.DICT:   (DictSpec, {"fields"}),
+    FieldType.LIST:   (ListSpec, {"fields"}),
     FieldType.REF:    (RefSpec, {"cardinality", "allow_globs", "must_exist", "base_dir", "extensions"}),
 }
 
@@ -58,8 +59,9 @@ class FieldDescriptor(BaseModel):
     Type‑specific (live in `spec`; authored flat):
       - string:   pattern
       - enum:     options
-      - list:     item (FieldDescriptor)
       - dict:     fields (list[FieldDescriptor])
+      - list:     fields (list[FieldDescriptor])  -> list of dicts with these fields
+                   (if omitted: list of strings)
       - ref:      cardinality, allow_globs, must_exist, base_dir, extensions
     """
 
@@ -105,17 +107,23 @@ class FieldDescriptor(BaseModel):
             other_keys = set().union(*[ks for t, (_, ks) in SPEC_REGISTRY.items() if t != ft])
             suspicious = stray & other_keys
             if suspicious:
-                # Render like "['pattern']" to match test expectations
+                # Render like "['pattern']" to match existing tests
                 allowed_fmt = "[" + ", ".join(repr(k) for k in sorted(allowed_keys)) + "]"
                 raise ValueError(
                     f"Unexpected key(s) for fieldtype '{ft.value}': {sorted(suspicious)}. "
                     f"Allowed: {allowed_fmt}"
                 )
 
+        # Synthesize spec from flat keys if provided
         if has_flat and not has_spec:
             synth = {"kind": ft.value, **present_flat}
+            # Remove flat keys from top-level and insert 'spec'
             data = {k: v for k, v in data.items() if k not in allowed_keys}
             data["spec"] = synth
+
+        # Also support minimal list authoring: fieldtype=list with no fields -> list[str]
+        if not has_flat and not has_spec and ft == FieldType.LIST:
+            data["spec"] = {"kind": "list"}  # fields omitted => default scalar list (str)
 
         return data
 
@@ -159,11 +167,12 @@ class FieldDescriptor(BaseModel):
                 FieldType.NUMBER: NumberSpec(),
                 FieldType.BOOLEAN: BooleanSpec(),
                 FieldType.REF:    RefSpec(),
+                FieldType.LIST:   ListSpec(),  # default scalar list (str)
             }
             if self.fieldtype in defaults:
                 self.spec = defaults[self.fieldtype]
             else:
-                # enum/list/dict require explicit spec (options/children)
+                # enum/dict require explicit spec (options/children)
                 raise ValueError(f"{self.fieldtype.value} requires a 'spec' block")
 
         if getattr(self.spec, "kind", None) != self.fieldtype.value:
@@ -177,6 +186,7 @@ class FieldDescriptor(BaseModel):
             if len(set(opts)) != len(opts):
                 raise ValueError("ENUM 'options' contain duplicates")
 
+        # DictSpec: min_length enforced by model; ListSpec: fields optional
         return self
 
     # --- Serializer: flatten spec back to top-level --- #
@@ -191,14 +201,23 @@ class FieldDescriptor(BaseModel):
         }
         _, keys = SPEC_REGISTRY[self.fieldtype]
         spec_dict = self.spec.model_dump() if self.spec else {}
-        flat_spec = {k: v for k, v in spec_dict.items() if k in keys}
+        flat_spec: Dict[str, Any] = {}
 
         if self.fieldtype == FieldType.DICT:
             spec: DictSpec = self.spec  # type: ignore[assignment]
             flat_spec["fields"] = [fd._dump_flat() for fd in spec.fields]
+
         elif self.fieldtype == FieldType.LIST:
             spec: ListSpec = self.spec  # type: ignore[assignment]
-            flat_spec["item"] = spec.item._dump_flat()
+            if spec.fields:
+                flat_spec["fields"] = [fd._dump_flat() for fd in spec.fields]
+            # else: scalar list default -> emit nothing extra
+
+        else:
+            # scalar/enums/refs: just copy allowed keys (pattern/options/ref knobs)
+            for k in keys:
+                if k in spec_dict:
+                    flat_spec[k] = spec_dict[k]
 
         base = {k: v for k, v in base.items() if v is not None}
         return {**base, **flat_spec}
@@ -206,4 +225,4 @@ class FieldDescriptor(BaseModel):
 
 # Resolve forward refs for specs that point to FieldDescriptor
 FieldDescriptor.model_rebuild()
-rebuild_specs(FieldDescriptor)  # <-- pass the class in
+rebuild_specs(FieldDescriptor)

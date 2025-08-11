@@ -28,16 +28,22 @@ class EnumSpec(BaseModel):
     options: List[str] = Field(min_length=1, description="Allowed enum values")
 
 
-class ListSpec(BaseModel):
-    kind: Literal["list"] = "list"
-    # NOTE: forward ref to FieldDescriptor to avoid import cycle
-    item: "FieldDescriptor" = Field(..., description="Schema describing each list element")
-
-
 class DictSpec(BaseModel):
     kind: Literal["dict"] = "dict"
     # NOTE: forward ref to FieldDescriptor to avoid import cycle
     fields: List["FieldDescriptor"] = Field(min_length=1, description="Nested named fields")
+
+
+class ListSpec(BaseModel):
+    kind: Literal["list"] = "list"
+    # AUTHORING MODEL:
+    # - If `fields` is provided: each list element is a dict with these fields
+    # - If `fields` is omitted: list of strings (default scalar list)
+    # NOTE: forward ref to FieldDescriptor to avoid import cycle
+    fields: Optional[List["FieldDescriptor"]] = Field(
+        default=None,
+        description="Schema of each list element as a dict (omit for list[str])",
+    )
 
 
 class RefSpec(BaseModel):
@@ -50,7 +56,7 @@ class RefSpec(BaseModel):
 
 
 FieldSpec = Annotated[
-    Union[StringSpec, NumberSpec, BooleanSpec, EnumSpec, ListSpec, DictSpec, RefSpec],
+    Union[StringSpec, NumberSpec, BooleanSpec, EnumSpec, DictSpec, ListSpec, RefSpec],
     Field(discriminator="kind"),
 ]
 
@@ -59,7 +65,7 @@ FieldSpec = Annotated[
 # Forward‑ref rebuild utility (called after FieldDescriptor is defined)
 # ---------------------------------------------------------------------------
 
-def rebuild_specs(FieldDescriptor: type) -> None:  # <-- accept the symbol
+def rebuild_specs(FieldDescriptor: type) -> None:
     """
     Resolve forward references to FieldDescriptor after it is defined.
     Called from field_descriptor.py once FieldDescriptor exists.
@@ -67,6 +73,6 @@ def rebuild_specs(FieldDescriptor: type) -> None:  # <-- accept the symbol
     We inject the class into this module's globals so Pydantic can
     resolve the string annotation "FieldDescriptor" during model_rebuild().
     """
-    globals()["FieldDescriptor"] = FieldDescriptor  # make it visible here
-    for cls in (ListSpec, DictSpec):
+    globals()["FieldDescriptor"] = FieldDescriptor
+    for cls in (DictSpec, ListSpec):
         cls.model_rebuild()
