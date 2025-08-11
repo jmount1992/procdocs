@@ -16,6 +16,7 @@ def main():
     validate.register(subparsers)
     render.register(subparsers)
     schema.register(subparsers)
+    render_template.register(subparsers)
     config.register(subparsers)
 
     args = parser.parse_args()
