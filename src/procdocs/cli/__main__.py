@@ -14,7 +14,7 @@ def main():
     # Register main document functions
     generate.register(subparsers)
     validate.register(subparsers)
-    # render.register(subparsers)
+    render.register(subparsers)
 
     # Register schema and render template sub-commands
     schema.register(subparsers)

@@ -2,7 +2,7 @@
 import json
 import pytest
 
-from procdocs.core.registry import SchemaRegistry
+from procdocs.core.schema.registry import SchemaRegistry
 from procdocs.core.constants import DEFAULT_TEXT_ENCODING
 
 

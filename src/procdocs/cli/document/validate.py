@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from procdocs.core.config import load_config  # expects a config with .schema_roots or similar
 from procdocs.core.constants import DEFAULT_TEXT_ENCODING
 from procdocs.core.document.document import Document
-from procdocs.core.registry import SchemaRegistry
+from procdocs.core.schema.registry import SchemaRegistry
 
 SUPPORTED_EXTENSIONS = {".yml", ".yaml"}
 

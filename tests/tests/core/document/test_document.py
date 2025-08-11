@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from procdocs.core.constants import DEFAULT_TEXT_ENCODING
 from procdocs.core.document.document import Document, _format_pydantic_errors_simple
-from procdocs.core.registry import SchemaRegistry
+from procdocs.core.schema.registry import SchemaRegistry
 
 
 def _write_schema(tmp, name: str):

@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
 from procdocs.core.constants import DEFAULT_TEXT_ENCODING
 from procdocs.core.document.metadata import DocumentMetadata
-from procdocs.core.registry import SchemaRegistry
+from procdocs.core.schema.registry import SchemaRegistry
 from procdocs.core.schema.document_schema import DocumentSchema
 from procdocs.core.runtime_model import build_contents_adapter
 
