@@ -15,9 +15,9 @@ def main():
     # Register subcommands (they should accept ctx)
     generate.register(subparsers)
     validate.register(subparsers)
-    render.register(subparsers)
+    # render.register(subparsers)
     schema.register(subparsers)
-    templates.register(subparsers)
+    # templates.register(subparsers)
     config.register(subparsers)
 
     args = parser.parse_args()
