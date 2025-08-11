@@ -29,10 +29,14 @@ def _make_schema():
             {
                 "fieldname": "steps",
                 "fieldtype": "list",
-                "fields": [
-                    {"fieldname": "step_number", "fieldtype": "number"},
-                    {"fieldname": "action"},
-                ],
+                "item": {
+                    "fieldname": "step",
+                    "fieldtype": "dict",
+                    "fields": [
+                        {"fieldname": "step_number", "fieldtype": "number"},
+                        {"fieldname": "action"},
+                    ],
+                },
             },
         ],
     }
@@ -88,7 +92,6 @@ def test_adapter_rejects_unknown_keys_any_level():
     schema = _make_schema()
     adapter = build_contents_adapter(schema)
 
-    # in test_adapter_rejects_unknown_keys_any_level
     with pytest.raises(ValidationError, match=r"extra|Extra inputs are not permitted"):
         adapter.validate_python({"id": "AB-123", "title": "t", "priority": "low", "meta": {"owner": "a"}, "steps": [], "oops": 1})
 
@@ -96,11 +99,11 @@ def test_adapter_rejects_unknown_keys_any_level():
         adapter.validate_python({"id": "AB-123", "title": "t", "priority": "low", "meta": {"owner": "a", "x": 1}, "steps": []})
 
 
-def test_adapter_supports_scalar_list_when_no_element_fields():
+def test_adapter_supports_list_of_strings_when_item_is_string():
     payload = {
         "metadata": {"schema_name": "scalarlist"},
         "structure": [
-            {"fieldname": "tags", "fieldtype": "list"}  # no fields => list[str]
+            {"fieldname": "tags", "fieldtype": "list", "item": {"fieldname": "tag", "fieldtype": "string"}}
         ],
     }
     schema = DocumentSchema.model_validate(payload)
@@ -122,10 +125,11 @@ def test__py_type_for_fallback_any_branch():
     """
     fake_fd = SimpleNamespace(
         fieldtype=FieldType.INVALID,
-        fields=None,
-        pattern=None,
-        options=None,
         fieldname="x",
+        required=True,
+        default=None,
+        spec=None,
+        _path="x",
     )
     t = _py_type_for(fake_fd)  # type: ignore[arg-type]
     # There's no isinstance check for typing.Any; compare its repr

@@ -18,10 +18,14 @@ def _write_schema(tmp, name: str):
             {
                 "fieldname": "steps",
                 "fieldtype": "list",
-                "fields": [
-                    {"fieldname": "step_number", "fieldtype": "number"},
-                    {"fieldname": "action"},
-                ],
+                "item": {
+                    "fieldname": "step",
+                    "fieldtype": "dict",
+                    "fields": [
+                        {"fieldname": "step_number", "fieldtype": "number"},
+                        {"fieldname": "action"},
+                    ],
+                },
             },
         ],
     }
@@ -64,7 +68,7 @@ def test_document_from_file_and_validate_via_registry(tmp_path):
 
 def test_document_validate_with_explicit_schema(tmp_path):
     root = tmp_path / "schemas"; root.mkdir()
-    spath = _write_schema(root, "alpha")
+    _write_schema(root, "alpha")
 
     reg = SchemaRegistry([root]); reg.load()
     schema = reg.require("alpha")
@@ -99,7 +103,6 @@ def test_document_type_mismatch_error(tmp_path):
     dpath = _write_doc(tmp_path, "doc4", {"id": "AB-123", "title": "t", "steps": []}, document_type="beta")
     doc = Document.from_file(dpath)
     schema = reg.require("alpha")
-    doc = Document.from_file(dpath)
     errs = doc.validate(schema=schema)  # explicit schema to trigger mismatch
     assert any("does not match schema 'alpha'" in e for e in errs)
 

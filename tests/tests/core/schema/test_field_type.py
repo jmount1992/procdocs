@@ -14,6 +14,7 @@ from procdocs.core.schema.field_type import FieldType
     ("list", FieldType.LIST),
     ("dict", FieldType.DICT),
     ("enum", FieldType.ENUM),
+    ("ref", FieldType.REF),
     (FieldType.STRING, FieldType.STRING),
     (None, FieldType.INVALID),
     ("unknown", FieldType.INVALID),
@@ -46,12 +47,13 @@ def test_from_python_type(typ, expected):
 # --- Introspection helpers --- #
 
 @pytest.mark.parametrize("ft,scalar,container,children,numeric", [
-    (FieldType.STRING, True,  False, False, False),
-    (FieldType.NUMBER, True,  False, False, True),
-    (FieldType.BOOLEAN, True, False, False, False),
-    (FieldType.ENUM,   True,  False, False, False),
-    (FieldType.LIST,   False, True,  True,  False),
-    (FieldType.DICT,   False, True,  True,  False),
+    (FieldType.STRING,  True,  False, False, False),
+    (FieldType.NUMBER,  True,  False, False, True),
+    (FieldType.BOOLEAN, True,  False, False, False),
+    (FieldType.ENUM,    True,  False, False, False),
+    (FieldType.LIST,    False, True,  True,  False),
+    (FieldType.DICT,    False, True,  True,  False),
+    (FieldType.REF,     False, False, False, False),
     (FieldType.INVALID, False, False, False, False),
 ])
 def test_introspection_helpers(ft, scalar, container, children, numeric):

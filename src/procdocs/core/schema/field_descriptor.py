@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import hashlib
-import re
-from typing import Any, Optional
+from typing import Any, Optional, Dict, Type
 
 from pydantic import (
     BaseModel,
@@ -9,38 +10,114 @@ from pydantic import (
     ConfigDict,
     field_validator,
     model_validator,
+    model_serializer,
     computed_field,
     PrivateAttr,
 )
 
 from procdocs.core.schema.field_type import FieldType
+from procdocs.core.schema.field_specs import (
+    FieldSpec,
+    StringSpec,
+    NumberSpec,
+    BooleanSpec,
+    EnumSpec,
+    ListSpec,
+    DictSpec,
+    RefSpec,
+    rebuild_specs,
+)
 from procdocs.core import constants as C
 from procdocs.core.utils import is_valid_fieldname_pattern
 
 
+# Registry of which *flat* keys belong to which FieldType.
+SPEC_REGISTRY: Dict[FieldType, tuple[Type[BaseModel], set[str]]] = {
+    FieldType.STRING: (StringSpec, {"pattern"}),
+    FieldType.NUMBER: (NumberSpec, set()),
+    FieldType.BOOLEAN: (BooleanSpec, set()),
+    FieldType.ENUM:   (EnumSpec, {"options"}),
+    FieldType.LIST:   (ListSpec, {"item"}),
+    FieldType.DICT:   (DictSpec, {"fields"}),
+    FieldType.REF:    (RefSpec, {"cardinality", "allow_globs", "must_exist", "base_dir", "extensions"}),
+}
+
+
 class FieldDescriptor(BaseModel):
     """
-    Pydantic v2 model representing one field in a document meta‑schema.
+    One field in a document meta‑schema.
 
-    - Supports recursion via `fields: list[FieldDescriptor] | None`
-    - Enforces: reserved names, allowed name pattern, regex validity, enum options
-    - Only `list` / `dict` may have nested `fields`
-    - For LIST: exactly one child descriptor describing the element schema
-    - UID is computed from canonical path (preferred) or (fieldname, level)
+    Authoring model:
+      - Users write type‑specific keys at the top level (flat).
+      - We pack them into a typed `spec` based on `fieldtype`.
+      - When serializing, we flatten `spec` back to the top level.
+
+    Common keys:
+      - fieldname, fieldtype, required, description, default
+
+    Type‑specific (live in `spec`; authored flat):
+      - string:   pattern
+      - enum:     options
+      - list:     item (FieldDescriptor)
+      - dict:     fields (list[FieldDescriptor])
+      - ref:      cardinality, allow_globs, must_exist, base_dir, extensions
     """
 
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
     _path: str = PrivateAttr(default="")  # excluded from serialization
 
-    # --- Declared fields --- #
+    # Common
     fieldname: str = Field(..., description="The name of the field")
     fieldtype: FieldType = Field(default=FieldType.STRING, description="Field type")
     required: bool = Field(default=True, description="Whether this field is required")
     description: str | None = Field(default=None, description="Human-readable description")
-    options: list[str] | None = Field(default=None, description="Valid options for enum fields")
-    pattern: str | None = Field(default=None, description="Regex pattern for validation")
     default: Any | None = Field(default=None, description="Default value")
-    fields: list["FieldDescriptor"] | None = Field(default=None, description="Nested field descriptors")
+
+    # Per-type spec (packed/unpacked automatically)
+    spec: FieldSpec | None = Field(default=None, description="Type-specific parameters")
+
+    # --- Pre-parse: pack flat keys into spec --- #
+    @model_validator(mode="before")
+    @classmethod
+    def _pack_flat_spec(cls, data: Any):
+        if not isinstance(data, dict):
+            return data
+
+        # Missing fieldtype -> treat as STRING during packing
+        raw_ft = data.get("fieldtype")
+        ft = FieldType.parse(raw_ft) if raw_ft is not None else FieldType.STRING
+
+        spec_model, allowed_keys = SPEC_REGISTRY.get(ft, (None, set()))
+        if not spec_model:
+            return data
+
+        present_flat = {k: v for k, v in data.items() if k in allowed_keys}
+        has_flat = bool(present_flat)
+        has_spec = isinstance(data.get("spec"), dict)
+
+        if has_flat and has_spec:
+            raise ValueError("Provide either flat type-specific keys or 'spec', not both")
+
+        # Flag keys that look like other types' keys (helps authoring errors)
+        common = {"fieldname", "fieldtype", "required", "description", "default", "spec"}
+        stray = {k for k in data.keys() if k not in (common | allowed_keys)}
+        if stray:
+            other_keys = set().union(*[ks for t, (_, ks) in SPEC_REGISTRY.items() if t != ft])
+            suspicious = stray & other_keys
+            if suspicious:
+                # Render like "['pattern']" to match test expectations
+                allowed_fmt = "[" + ", ".join(repr(k) for k in sorted(allowed_keys)) + "]"
+                raise ValueError(
+                    f"Unexpected key(s) for fieldtype '{ft.value}': {sorted(suspicious)}. "
+                    f"Allowed: {allowed_fmt}"
+                )
+
+        if has_flat and not has_spec:
+            synth = {"kind": ft.value, **present_flat}
+            data = {k: v for k, v in data.items() if k not in allowed_keys}
+            data["spec"] = synth
+
+        return data
 
     # --- Computed UID --- #
     @computed_field  # type: ignore[prop-decorator]
@@ -65,64 +142,68 @@ class FieldDescriptor(BaseModel):
         if s in C.RESERVED_FIELDNAMES:
             raise ValueError(f"'{s}' is a reserved name and cannot be used")
         if not is_valid_fieldname_pattern(s):
-            # use pattern text for stable error message
             raise ValueError(
                 f"The fieldname '{s}' must match the pattern '{C.FIELDNAME_ALLOWED_PATTERN.pattern}'"
             )
         return s
 
-    @field_validator("pattern")
-    @classmethod
-    def _validate_regex_pattern(cls, v: Optional[str]) -> Optional[str]:
-        if v:
-            try:
-                re.compile(v)
-            except re.error as e:
-                raise ValueError(f"Invalid regex pattern: {e}") from e
-        return v
-
     @model_validator(mode="after")
-    def _post_validate(self) -> "FieldDescriptor":
-        # invalid/unknown types must be rejected
+    def _post(self):
         if self.fieldtype == FieldType.INVALID:
-            raise ValueError("Unknown fieldtype; valid types are: string, number, boolean, list, dict, enum")
+            raise ValueError("Unknown fieldtype; valid types are: string, number, boolean, list, dict, enum, ref")
 
-        # ENUM must define options (non-empty, unique)
+        # Inject defaults for simple types when spec is omitted
+        if self.spec is None:
+            defaults: Dict[FieldType, FieldSpec] = {
+                FieldType.STRING: StringSpec(),
+                FieldType.NUMBER: NumberSpec(),
+                FieldType.BOOLEAN: BooleanSpec(),
+                FieldType.REF:    RefSpec(),
+            }
+            if self.fieldtype in defaults:
+                self.spec = defaults[self.fieldtype]
+            else:
+                # enum/list/dict require explicit spec (options/children)
+                raise ValueError(f"{self.fieldtype.value} requires a 'spec' block")
+
+        if getattr(self.spec, "kind", None) != self.fieldtype.value:
+            raise ValueError(f"'spec.kind' ({self.spec.kind}) does not match fieldtype '{self.fieldtype.value}'")
+
+        # Enum: extra checks
         if self.fieldtype == FieldType.ENUM:
-            if not self.options:
-                raise ValueError("ENUM fieldtype must define 'options'")
-            opts = [str(o) for o in self.options]
+            opts = [str(o) for o in self.spec.options]  # type: ignore[attr-defined]
             if any(s.strip() == "" for s in opts):
                 raise ValueError("ENUM 'options' must not contain empty strings")
             if len(set(opts)) != len(opts):
                 raise ValueError("ENUM 'options' contain duplicates")
 
-        # Nested fields only allowed for LIST or DICT
-        if self.fields and self.fieldtype not in (FieldType.LIST, FieldType.DICT):
-            raise ValueError("Nested 'fields' only allowed for 'list' or 'dict' types")
-
-        # If container, enforce children shape
-        if self.is_list() or self.is_dict():
-            if self.fields is not None and len(self.fields) == 0:
-                raise ValueError(f"{self.fieldtype.value} must define at least one child in 'fields' if provided")
-
         return self
 
-    # --- Helpers --- #
-    def is_fieldtype(self, *types) -> bool:
-        # accept FieldType or str
-        targets = {FieldType.parse(t) for t in types}
-        return self.fieldtype in targets
+    # --- Serializer: flatten spec back to top-level --- #
+    @model_serializer(mode="plain")
+    def _dump_flat(self):
+        base = {
+            "fieldname": self.fieldname,
+            "fieldtype": self.fieldtype.value,
+            "required": self.required,
+            "description": self.description,
+            "default": self.default,
+        }
+        _, keys = SPEC_REGISTRY[self.fieldtype]
+        spec_dict = self.spec.model_dump() if self.spec else {}
+        flat_spec = {k: v for k, v in spec_dict.items() if k in keys}
 
-    def is_list(self) -> bool:
-        return self.fieldtype == FieldType.LIST
+        if self.fieldtype == FieldType.DICT:
+            spec: DictSpec = self.spec  # type: ignore[assignment]
+            flat_spec["fields"] = [fd._dump_flat() for fd in spec.fields]
+        elif self.fieldtype == FieldType.LIST:
+            spec: ListSpec = self.spec  # type: ignore[assignment]
+            flat_spec["item"] = spec.item._dump_flat()
 
-    def is_dict(self) -> bool:
-        return self.fieldtype == FieldType.DICT
-
-    def is_enum(self) -> bool:
-        return self.fieldtype == FieldType.ENUM
+        base = {k: v for k, v in base.items() if v is not None}
+        return {**base, **flat_spec}
 
 
-# Ensure forward refs work in all import orders
+# Resolve forward refs for specs that point to FieldDescriptor
 FieldDescriptor.model_rebuild()
+rebuild_specs(FieldDescriptor)  # <-- pass the class in

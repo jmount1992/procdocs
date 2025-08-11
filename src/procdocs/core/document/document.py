@@ -94,8 +94,6 @@ class Document(BaseModel):
         # Validate contents shape & types via dynamic adapter
         adapter = build_contents_adapter(schema)
         try:
-            # If needed later, we can keep the normalized form:
-            # normalized = adapter.validate_python(self.contents or {})
             adapter.validate_python(self.contents or {})
         except ValidationError as e:
             errors.extend(_format_pydantic_errors_simple(e))
@@ -125,7 +123,7 @@ def _format_pydantic_errors_simple(e: ValidationError) -> List[str]:
             if isinstance(seg, int):
                 parts.append(f"[{seg}]")
             else:
-                if parts:  # always insert a dot before a new string segment
+                if parts:  # dot before string segment (except at start)
                     parts.append(".")
                 parts.append(str(seg))
         path = "".join(parts) if parts else "<root>"

@@ -44,11 +44,12 @@ def test_registry_skips_invalid_files(tmp_path):
     # valid
     _write_schema(root, "ok", [{"fieldname": "id"}])
 
-    # invalid: list field without proper child array (still structurally OK),
-    # make it invalid by enum without options
+    # invalid enum (missing options) -> should be skipped
     bad = root / "bad.json"
-    bad.write_text(json.dumps({"metadata": {"schema_name": "bad"}, "structure": [{"fieldname": "x", "fieldtype": "enum"}]}),
-                   encoding=DEFAULT_TEXT_ENCODING)
+    bad.write_text(
+        json.dumps({"metadata": {"schema_name": "bad"}, "structure": [{"fieldname": "x", "fieldtype": "enum"}]}),
+        encoding=DEFAULT_TEXT_ENCODING,
+    )
 
     reg = SchemaRegistry([root])
     reg.load()

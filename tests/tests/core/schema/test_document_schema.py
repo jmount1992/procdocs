@@ -31,7 +31,7 @@ def test_from_file_json_only_success(tmp_path):
             {
                 "fieldname": "items",
                 "fieldtype": "list",
-                "fields": [{"fieldname": "element"}],
+                "item": {"fieldname": "element"},
             },
         ],
     }
@@ -48,14 +48,16 @@ def test_from_file_json_only_success(tmp_path):
     f0, f1, f2 = ds.structure
     assert f0._path == "id"
     assert f1._path == "group"
-    assert f1.fields[0]._path == "group/child"
+    # dict child path
+    assert f1.spec.fields[0]._path == "group/child"   # type: ignore[attr-defined]
     assert f2._path == "items"
-    assert f2.fields[0]._path == "items/element"
+    # list item path uses the [] segment for UID stability
+    assert f2.spec.item._path == "items[]/element"    # type: ignore[attr-defined]
 
     # uid is sha1 of canonical path
     assert f0.uid == _sha10("id")
-    assert f1.fields[0].uid == _sha10("group/child")
-    assert f2.fields[0].uid == _sha10("items/element")
+    assert f1.spec.fields[0].uid == _sha10("group/child")   # type: ignore[attr-defined]
+    assert f2.spec.item.uid == _sha10("items[]/element")    # type: ignore[attr-defined]
 
 
 def test_from_file_non_json_extension_rejected(tmp_path):
@@ -132,10 +134,14 @@ def test_assignment_into_existing_fielddescriptor_respects_path():
         "metadata": {"schema_name": "pathcheck"},
         "structure": [
             FieldDescriptor(fieldname="root"),  # type: ignore[arg-type]
-            FieldDescriptor(fieldname="parent", fieldtype="dict", fields=[  # type: ignore[arg-type]
-                FieldDescriptor(fieldname="child")  # type: ignore[arg-type]
-            ])
+            FieldDescriptor(  # type: ignore[arg-type]
+                fieldname="parent",
+                fieldtype="dict",
+                # provide spec via flat authoring using 'fields'
+                fields=[{"fieldname": "child"}],
+            ),
         ]
     })
     assert ds.structure[0]._path == "root"
-    assert ds.structure[1].fields[0]._path == "parent/child"
+    # dict child path
+    assert ds.structure[1].spec.fields[0]._path == "parent/child"  # type: ignore[attr-defined]

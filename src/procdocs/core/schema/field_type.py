@@ -12,9 +12,10 @@ class FieldType(str, Enum):
     - string   : textual scalar
     - number   : numeric scalar (int or float)
     - boolean  : true/false scalar
-    - list     : homogeneous list, may have nested `fields` describing the element
-    - dict     : mapping/object with named nested `fields`
+    - list     : homogeneous list, may have nested item schema
+    - dict     : mapping/object with named nested fields
     - enum     : string constrained to a fixed set of options
+    - ref      : reference(s) to file paths and/or globs
     - invalid  : unrecognized type (returned by `parse`)
     """
 
@@ -24,6 +25,7 @@ class FieldType(str, Enum):
     LIST = "list"
     DICT = "dict"
     ENUM = "enum"
+    REF = "ref"
     INVALID = "invalid"
 
     # --- Parsing helpers --- #
@@ -88,7 +90,7 @@ class FieldType(str, Enum):
         return self in {FieldType.LIST, FieldType.DICT}
 
     def allows_children(self) -> bool:
-        """True when nested `fields` are allowed (list/dict)."""
+        """True when nested content is allowed (list/dict)."""
         return self.is_container()
 
     def is_numeric(self) -> bool:

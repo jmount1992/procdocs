@@ -9,7 +9,8 @@ from typing import Iterable, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from procdocs.core.constants import DEFAULT_TEXT_ENCODING
-from procdocs.core.schema.field_descriptor import FieldDescriptor
+from procdocs.core.schema.field_descriptor import FieldDescriptor, DictSpec, ListSpec
+from procdocs.core.schema.field_type import FieldType
 from procdocs.core.schema.metadata import SchemaMetadata
 
 
@@ -57,21 +58,45 @@ class DocumentSchema(BaseModel):
 
     @classmethod
     def _assign_paths(cls, fds: Iterable[FieldDescriptor], parent_path: str) -> None:
+        """
+        Assign canonical `_path` to each FieldDescriptor and recurse into
+        dict/list children held within their `spec`.
+        """
         for fd in fds:
             fd._path = f"{parent_path}/{fd.fieldname}" if parent_path else fd.fieldname
-            if fd.fields:
-                cls._assign_paths(fd.fields, parent_path=fd._path)
+
+            # Recurse into DICT -> spec.fields
+            if fd.fieldtype == FieldType.DICT:
+                spec: DictSpec = fd.spec  # type: ignore[assignment]
+                cls._assign_paths(spec.fields, parent_path=fd._path)
+
+            # Recurse into LIST -> spec.item (single FieldDescriptor)
+            if fd.fieldtype == FieldType.LIST:
+                spec: ListSpec = fd.spec  # type: ignore[assignment]
+                # The list's element gets a synthetic name under this node for UID stability
+                spec.item._path = f"{fd._path}[]/{spec.item.fieldname}"
+                # And recurse further in case the item is dict/list
+                cls._assign_paths([spec.item], parent_path=f"{fd._path}[]")
 
     @classmethod
     def _check_no_duplicates(cls, fds: Iterable[FieldDescriptor], at_path: str) -> None:
+        """
+        Ensure no duplicate fieldnames among siblings, recursing into dict/list specs.
+        """
         names = [fd.fieldname for fd in fds]
         dup_counts = {n: c for n, c in Counter(names).items() if c > 1}
         if dup_counts:
             details = ", ".join(f"{n} ×{c}" for n, c in sorted(dup_counts.items()))
             raise ValueError(f"Duplicate field names at '{at_path}': {details}")
+
         for fd in fds:
-            if fd.fields:
-                cls._check_no_duplicates(fd.fields, f"{at_path}.{fd.fieldname}")
+            if fd.fieldtype == FieldType.DICT:
+                spec: DictSpec = fd.spec  # type: ignore[assignment]
+                cls._check_no_duplicates(spec.fields, f"{at_path}.{fd.fieldname}")
+            elif fd.fieldtype == FieldType.LIST:
+                spec: ListSpec = fd.spec  # type: ignore[assignment]
+                # The item itself may be a dict/list, recurse by treating it as a child list
+                cls._check_no_duplicates([spec.item], f"{at_path}.{fd.fieldname}[]")
 
     # --- File IO (JSON-only) --- #
     @classmethod

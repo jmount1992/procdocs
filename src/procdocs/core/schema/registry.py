@@ -27,8 +27,8 @@ class SchemaRegistry:
             for p in root.rglob("*.json"):
                 try:
                     schema = DocumentSchema.from_file(p)
-                    # Will raise if invalid; fine to skip bad files here
                 except Exception:
+                    # Skip invalid schemas silently (tests assert this behavior)
                     continue
                 self._schemas[schema.schema_name] = schema
                 # Warm the adapter cache for this schema
