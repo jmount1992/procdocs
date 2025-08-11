@@ -2,8 +2,8 @@
 
 from pydantic import Field
 
-from procdocs.core.base.base_metadata import BaseMetadata
-from procdocs.core.base.types import SchemaLikeName, FreeFormVersion
+from procdocs.core.metadata_base import BaseMetadata
+from procdocs.core.annotated_types import DocumentTypeName, FreeFormVersion
 
 
 class DocumentMetadata(BaseMetadata):
@@ -40,5 +40,5 @@ class DocumentMetadata(BaseMetadata):
     'alice'
     """
 
-    document_type: SchemaLikeName = Field(...)
+    document_type: DocumentTypeName = Field(...)
     document_version: FreeFormVersion = Field(default=None, description="Version label for this document instance (user managed; free-form)")

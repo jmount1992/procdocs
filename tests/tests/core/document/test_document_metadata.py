@@ -3,7 +3,7 @@ import pytest
 from pydantic import ValidationError
 
 from procdocs.core.document.metadata import DocumentMetadata
-from procdocs.core.base.base_metadata import BaseMetadata
+from procdocs.core.metadata_base import BaseMetadata
 
 
 # --- Valid construction --- #

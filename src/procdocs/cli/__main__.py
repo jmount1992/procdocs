@@ -2,8 +2,9 @@
 
 import argparse
 from procdocs.core.app import get_context
-from procdocs.cli import config, schema, render_template
+from procdocs.cli import config, schema, templates
 from procdocs.cli.document import generate, validate, render
+
 
 def main():
     parser = argparse.ArgumentParser(prog="procdocs", description="ProcDocs CLI Toolkit")
@@ -16,7 +17,7 @@ def main():
     validate.register(subparsers)
     render.register(subparsers)
     schema.register(subparsers)
-    render_template.register(subparsers)
+    templates.register(subparsers)
     config.register(subparsers)
 
     args = parser.parse_args()
@@ -25,6 +26,7 @@ def main():
         exit(args.func(args, ctx))
     parser.print_help()
     exit(1)
+
 
 if __name__ == "__main__":
     main()

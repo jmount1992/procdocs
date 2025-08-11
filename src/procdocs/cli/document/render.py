@@ -3,19 +3,13 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
+
 from pydantic import ValidationError
 
-from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
-
-# PDF is optional; if not installed, HTML still works
-try:
-    from weasyprint import HTML  # type: ignore
-    HAVE_WEASYPRINT = True
-except Exception:
-    HAVE_WEASYPRINT = False
-
+from procdocs.core.app_context import AppContext
 from procdocs.core.yaml_loader import load_yaml_with_includes
 from procdocs.core.document.document import Document
+from procdocs.core.render.engine import render_document
 
 # Validation is optional; only used if --schema-root is provided
 try:
@@ -24,18 +18,7 @@ except Exception:
     SchemaRegistry = None  # type: ignore
 
 
-def _detect_format(output_path: Path, explicit: Optional[str]) -> str:
-    if explicit:
-        return explicit
-    suf = output_path.suffix.lower()
-    if suf in (".html", ".htm"):
-        return "html"
-    if suf == ".pdf":
-        return "pdf"
-    return "html"
-
-
-def main(args) -> int:
+def main(args, ctx: AppContext) -> int:
     try:
         doc_path = Path(args.doc_path).resolve()
         template_path = Path(args.template_path).resolve()
@@ -57,50 +40,31 @@ def main(args) -> int:
                 print(f"  - {loc}: {err.get('msg')}")
             return 1
 
-        # 3) Optional validation if schema roots supplied
+        # 3) Optional schema validation
         if args.schema_root:
             if SchemaRegistry is None:
                 print("Warning: SchemaRegistry not available; skipping validation.")
             else:
                 registry = SchemaRegistry.from_paths(args.schema_root)
                 result = doc.validate(registry=registry)
-                # Accept either raising or returning a result container
                 if hasattr(result, "has_errors") and result.has_errors():
                     print("Validation failed:")
                     for e in getattr(result, "errors", []):
                         print(f"  - {e}")
                     return 1
 
-        # 4) Render via Jinja2
-        env = Environment(
-            loader=FileSystemLoader([str(template_path.parent)]),
-            undefined=StrictUndefined,
-            trim_blocks=True,
-            lstrip_blocks=True,
-            autoescape=select_autoescape(enabled_extensions=("html", "xml")),
+        # 4) Delegate to render engine
+        render_document(
+            document=doc,
+            template_path=template_path,
+            output_path=output_path,
+            templates_roots=[template_path.parent],
+            format_hint=args.format,  # may be None → engine will auto-detect by suffix
+            extra_filters=None,       # wire in if/when you have custom filters
+            base_url=template_path.parent,
+            prepend_pdf=None,         # wire these via CLI flags in future if needed
+            append_pdf=None,
         )
-        template = env.get_template(template_path.name)
-
-        # Keep context minimal; also expose legacy keys if your older templates need them
-        html = template.render(
-            doc=doc,
-            metadata=getattr(doc, "metadata", None),
-            contents=getattr(doc, "_contents", None),
-        )
-
-        # 5) Output
-        out_format = _detect_format(output_path, args.format)
-        if out_format == "html":
-            output_path.write_text(html, encoding="utf-8")
-        elif out_format == "pdf":
-            if not HAVE_WEASYPRINT:
-                print("Error: PDF rendering requires 'weasyprint'. Install it or use --format html.")
-                return 1
-            # base_url lets relative assets (CSS/images) in the template resolve
-            HTML(string=html, base_url=str(template_path.parent)).write_pdf(str(output_path))
-        else:
-            print(f"Unsupported format: {out_format}")
-            return 1
 
         print(f"Rendered {doc_path.name} → {output_path}")
         return 0

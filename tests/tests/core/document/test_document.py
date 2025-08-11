@@ -151,16 +151,6 @@ def test_document_validate_without_schema_or_registry_returns_error(tmp_path):
     assert doc.is_valid is False
 
 
-def test_document_from_json_str_helper_covers_path():
-    """
-    Touch the from_json_str() helper to cover that construction path.
-    """
-    json_text = '{"metadata": {"document_type": "x"}, "contents": {}}'
-    doc = Document.from_json_str(json_text)
-    # ensure the model parsed
-    assert doc.metadata.document_type == "x"
-
-
 def test_validate_branch_when_document_type_missing_via_model_construct(tmp_path):
     # Empty registry is fine; we only need it present to bypass the "no registry" early return.
     reg = SchemaRegistry([tmp_path])

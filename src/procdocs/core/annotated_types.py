@@ -40,5 +40,6 @@ def _normalize_freeform_version(v) -> Optional[str]:
 
 # --- Reusable Annotated types --- #
 
-SchemaLikeName = Annotated[str, BeforeValidator(_normalize_schema_like_name)]
+SchemaName = Annotated[str, BeforeValidator(_normalize_schema_like_name)]
+DocumentTypeName = SchemaName  # semantic alias for document.metadata.document_type
 FreeFormVersion = Annotated[Optional[str], BeforeValidator(_normalize_freeform_version)]

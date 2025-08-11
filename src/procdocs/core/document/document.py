@@ -36,7 +36,7 @@ class Document(BaseModel):
     # Keep last validation result (not serialized)
     _last_errors: List[str] = PrivateAttr(default_factory=list)
 
-    # --- IO ------------------------------------------------------------------ #
+    # --- IO --- #
 
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "Document":
@@ -51,12 +51,7 @@ class Document(BaseModel):
         data = yaml.safe_load(p.read_text(encoding=DEFAULT_TEXT_ENCODING)) or {}
         return cls.model_validate(data)
 
-    @classmethod
-    def from_json_str(cls, text: str) -> "Document":
-        """Helper for tests / tools that already have JSON doc text."""
-        return cls.model_validate_json(text)
-
-    # --- Validation ----------------------------------------------------------- #
+    # --- Validation --- #
 
     def validate(self, schema: Optional[DocumentSchema] = None, registry: Optional[SchemaRegistry] = None) -> List[str]:
         """
@@ -102,7 +97,7 @@ class Document(BaseModel):
         self._last_errors = errors
         return errors
 
-    # --- Convenience ---------------------------------------------------------- #
+    # --- Convenience --- #
 
     @property
     def is_valid(self) -> bool:

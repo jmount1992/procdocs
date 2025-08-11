@@ -2,16 +2,16 @@
 import pytest
 from pydantic import BaseModel, ValidationError, ConfigDict
 
-from procdocs.core.base.types import SchemaLikeName, FreeFormVersion
+from procdocs.core.annotated_types import SchemaName, FreeFormVersion
 
 
 class _Dummy(BaseModel):
     model_config = ConfigDict(validate_assignment=True)  # <-- add this
-    name: SchemaLikeName
+    name: SchemaName
     ver: FreeFormVersion = None
 
 
-# --- SchemaLikeName (normalizer) --- #
+# --- SchemaName (normalizer) --- #
 
 @pytest.mark.parametrize("raw,expected", [
     ("test", "test"),
@@ -19,19 +19,19 @@ class _Dummy(BaseModel):
     ("  My.Schema_01  ", "my.schema_01"),
     ("A-B_C.D", "a-b_c.d"),
 ])
-def test_schema_like_name_normalization(raw, expected):
+def test_schema_name_normalization(raw, expected):
     m = _Dummy(name=raw)
     assert m.name == expected
 
 
 @pytest.mark.parametrize("bad", [None, "", "   "])
-def test_schema_like_name_empty_raises(bad):
+def test_schema_name_empty_raises(bad):
     with pytest.raises(ValidationError, match="Invalid name: must be a non-empty string"):
         _Dummy(name=bad)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("bad", ["bad name", "inv@lid", "slash/name", "star*name"])
-def test_schema_like_name_invalid_chars_raises(bad):
+def test_schema_name_invalid_chars_raises(bad):
     with pytest.raises(ValidationError, match="allowed characters"):
         _Dummy(name=bad)
 

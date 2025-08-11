@@ -2,7 +2,7 @@
 import pytest
 from pydantic import ValidationError
 
-from procdocs.core.base.base_metadata import BaseMetadata
+from procdocs.core.metadata_base import BaseMetadata
 from procdocs.core.constants import PROCDOCS_FORMAT_VERSION
 
 

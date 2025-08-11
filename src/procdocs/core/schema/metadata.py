@@ -2,8 +2,8 @@
 
 from pydantic import Field
 
-from procdocs.core.base.base_metadata import BaseMetadata
-from procdocs.core.base.types import SchemaLikeName, FreeFormVersion
+from procdocs.core.metadata_base import BaseMetadata
+from procdocs.core.annotated_types import SchemaName, FreeFormVersion
 
 
 class SchemaMetadata(BaseMetadata):
@@ -29,5 +29,5 @@ class SchemaMetadata(BaseMetadata):
     '0.3'
     """
 
-    schema_name: SchemaLikeName = Field(...)
+    schema_name: SchemaName = Field(...)
     schema_version: FreeFormVersion = Field(default=None, description="Version label for this schema instance (user managed; free-form)")
