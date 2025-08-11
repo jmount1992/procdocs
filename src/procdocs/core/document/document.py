@@ -1,114 +1,133 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
-import re
+import json
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Any, Dict, List, Optional, Union
+
 import yaml
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
-from procdocs.core.schema.document_schema import DocumentSchema
+from procdocs.core.constants import DEFAULT_TEXT_ENCODING
 from procdocs.core.document.metadata import DocumentMetadata
+from procdocs.core.registry import SchemaRegistry
+from procdocs.core.schema.document_schema import DocumentSchema
+from procdocs.core.runtime_model import build_contents_adapter
 
 
-class Document:
+class Document(BaseModel):
+    """
+    A concrete ProcDocs document:
+      - `metadata`: validated by DocumentMetadata
+      - `contents`: free-form mapping that can be validated against a DocumentSchema
 
-    def __init__(self, schema: DocumentSchema):
-        self._schema = schema
-        self._metadata: Optional[DocumentMetadata] = None
-        self._contents: Optional[Dict] = None
+    Use:
+        doc = Document.from_file("doc.yaml")
+        errors = doc.validate(registry=my_registry)   # auto-resolve by document_type
+        if not errors:
+            ... # good to render with Jinja etc.
+    """
 
-    @property
-    def schema(self) -> DocumentSchema:
-        return self._schema
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
-    @property
-    def metadata(self) -> DocumentMetadata:
-        return self._metadata
+    metadata: DocumentMetadata = Field(...)
+    contents: Dict[str, Any] = Field(default_factory=dict)
 
-    @property
-    def contents(self) -> Dict:
-        return self._contents
+    # Keep last validation result (not serialized)
+    _last_errors: List[str] = PrivateAttr(default_factory=list)
+
+    # --- IO ------------------------------------------------------------------ #
 
     @classmethod
-    def from_dict(cls, data: Dict, schema: DocumentSchema) -> "Document":
-        doc = cls(schema)
-        doc._metadata = DocumentMetadata.from_dict(data.get("metadata", {}))
-        doc._contents = data.get("contents", {})
-        return doc
-
-    @classmethod
-    def from_file(cls, filepath: Path, schema: DocumentSchema) -> "Document":
-        if not isinstance(filepath, (str, Path)):
-            raise TypeError(f"The filepath argument must be of type Path or str, not '{type(filepath)}'")
-        filepath = Path(filepath)
-
-        if not filepath.exists():
-            raise FileNotFoundError(f"The file '{filepath}' does not exist")
-
-        with filepath.open('r') as f:
-            data = yaml.safe_load(f)
-
-        return cls.from_dict(data, schema)
-
-    def validate(self) -> list[str]:
+    def from_file(cls, path: Union[str, Path]) -> "Document":
         """
-        Validates the document instance against its associated schema.
+        Load a document from a YAML file (.yml/.yaml).
+        """
+        p = Path(path)
+        if not p.exists():
+            raise FileNotFoundError(f"The file '{p}' does not exist")
+        if p.suffix.lower() not in {".yml", ".yaml"}:
+            raise ValueError(f"Invalid document file extension for '{p.name}'; expected a .yml/.yaml file")
+        data = yaml.safe_load(p.read_text(encoding=DEFAULT_TEXT_ENCODING)) or {}
+        return cls.model_validate(data)
+
+    @classmethod
+    def from_json_str(cls, text: str) -> "Document":
+        """Helper for tests / tools that already have JSON doc text."""
+        return cls.model_validate_json(text)
+
+    # --- Validation ----------------------------------------------------------- #
+
+    def validate(self, schema: Optional[DocumentSchema] = None, registry: Optional[SchemaRegistry] = None) -> List[str]:
+        """
+        Validate this document against a schema.
+
+        - If `schema` is provided: validate against it.
+        - Else if `registry` is provided: resolve schema from `metadata.document_type`.
+        - Else: returns an error prompting for a schema or registry.
 
         Returns:
-            A list of error strings, where each entry describes a validation issue.
+            List of human-readable error messages (empty list = valid).
         """
-        errors = []
+        errors: List[str] = []
 
-        if self._metadata is None or self._contents is None:
-            return ["Document is missing metadata or contents section"]
+        # Resolve schema
+        if schema is None:
+            if registry is None:
+                self._last_errors = ["No schema provided and no registry available for resolution"]
+                return self._last_errors
+            if not self.metadata or not self.metadata.document_type:
+                self._last_errors = ["metadata.document_type is missing; cannot resolve schema"]
+                return self._last_errors
+            try:
+                schema = registry.require(self.metadata.document_type)
+            except LookupError as e:
+                self._last_errors = [f"Schema resolution failed: {e}"]
+                return self._last_errors
 
-        # Validate metadata
+        # Check the metadata.document_type matches the schema name
+        if self.metadata.document_type != schema.schema_name:
+            errors.append(
+                f"metadata.document_type: '{self.metadata.document_type}' does not match schema '{schema.schema_name}'"
+            )
+
+        # Validate contents shape & types via dynamic adapter
+        adapter = build_contents_adapter(schema)
         try:
-            self._metadata.validate()
-        except Exception as e:
-            errors.append(f"Metadata validation failed: {e}")
+            # If needed later, we can keep the normalized form:
+            # normalized = adapter.validate_python(self.contents or {})
+            adapter.validate_python(self.contents or {})
+        except ValidationError as e:
+            errors.extend(_format_pydantic_errors_simple(e))
 
-        # Validate Fields
-        def validate_field(desc, value, path):
-            fieldname = desc.fieldname or "<unnamed>"
-            full_path = ".".join(path + [fieldname])
-
-            if value is None:
-                if desc.required:
-                    errors.append(f"{full_path}: Missing required field")
-                return
-
-            if desc.is_list():
-                if not isinstance(value, list):
-                    errors.append(f"{full_path}: Expected list but got {type(value).__name__}")
-                    return
-                for i, item in enumerate(value):
-                    if not isinstance(item, dict):
-                        errors.append(f"{full_path}[{i}]: Expected dict items in list")
-                        continue
-                    for subdesc in desc.fields:
-                        validate_field(subdesc, item.get(subdesc.fieldname), path + [f"{fieldname}[{i}]"])
-
-            elif desc.is_dict():
-                if not isinstance(value, dict):
-                    errors.append(f"{full_path}: Expected dict but got {type(value).__name__}")
-                    return
-                for subdesc in desc.fields:
-                    validate_field(subdesc, value.get(subdesc.fieldname), path + [fieldname])
-
-            else:
-                if desc.pattern:
-                    val_str = str(value)
-                    if not re.match(desc.pattern, val_str):
-                        errors.append(f"{full_path}: Value '{val_str}' does not match pattern '{desc.pattern}'")
-
-                if desc.fieldtype.name == "NUMBER":
-                    if not isinstance(value, (int, float)):
-                        errors.append(f"{full_path}: Expected number but got {type(value).__name__}")
-
-        for desc in self._schema.structure.values():
-            value = self._contents.get(desc.fieldname)
-            if value is None and desc.default is not None:
-                value = desc.default
-            validate_field(desc, value, [])
-
+        # Save and return
+        self._last_errors = errors
         return errors
+
+    # --- Convenience ---------------------------------------------------------- #
+
+    @property
+    def is_valid(self) -> bool:
+        return len(self._last_errors) == 0
+
+
+def _format_pydantic_errors_simple(e: ValidationError) -> List[str]:
+    """
+    Minimal, stable formatter for Pydantic errors.
+    Example path: contents.steps[0].step_number
+    """
+    msgs: List[str] = []
+    for err in e.errors():
+        loc = err.get("loc", ())
+        msg = err.get("msg", "Validation error")
+        parts: List[str] = []
+        for seg in loc:
+            if isinstance(seg, int):
+                parts.append(f"[{seg}]")
+            else:
+                if parts:  # always insert a dot before a new string segment
+                    parts.append(".")
+                parts.append(str(seg))
+        path = "".join(parts) if parts else "<root>"
+        msgs.append(f"{path}: {msg}")
+    return msgs

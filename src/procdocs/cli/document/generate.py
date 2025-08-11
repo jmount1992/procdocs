@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+from pathlib import Path
+
 from procdocs.core.schema.document_schema import DocumentSchema
 from procdocs.core.config import load_config
 from procdocs.core.utils import find_schema_path
-# from procdocs.tooling.generate_yaml_template import generate_yaml_template
+from procdocs.tooling.document_template import write_yaml_template
 
 
 def main(args):
@@ -16,8 +18,9 @@ def main(args):
 
     try:
         meta_schema = DocumentSchema.from_file(schema_path)
-        # generate_yaml_template(meta_schema, args.output_path)
-        print(f"Template generated at {args.output_path}")
+        output_path = Path(args.output_path).resolve()
+        write_yaml_template(meta_schema, output_path)
+        print(f"Template generated at {output_path}")
         return 0
     except Exception as e:
         print(f"Error generating template:\n  {e}")

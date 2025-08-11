@@ -12,8 +12,8 @@ def main():
 
     # Register high-level command groups
     # Register main document functions
-    # generate.register(subparsers)
-    # validate.register(subparsers)
+    generate.register(subparsers)
+    validate.register(subparsers)
     # render.register(subparsers)
 
     # Register schema and render template sub-commands
