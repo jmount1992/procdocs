@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -13,6 +12,7 @@ from procdocs.core.document.metadata import DocumentMetadata
 from procdocs.core.schema.registry import SchemaRegistry
 from procdocs.core.schema.document_schema import DocumentSchema
 from procdocs.core.runtime_model import build_contents_adapter
+from procdocs.core.formatting import format_pydantic_errors_simple
 
 
 class Document(BaseModel):
@@ -96,7 +96,7 @@ class Document(BaseModel):
         try:
             adapter.validate_python(self.contents or {})
         except ValidationError as e:
-            errors.extend(_format_pydantic_errors_simple(e))
+            errors.extend(format_pydantic_errors_simple(e))
 
         # Save and return
         self._last_errors = errors
@@ -107,25 +107,3 @@ class Document(BaseModel):
     @property
     def is_valid(self) -> bool:
         return len(self._last_errors) == 0
-
-
-def _format_pydantic_errors_simple(e: ValidationError) -> List[str]:
-    """
-    Minimal, stable formatter for Pydantic errors.
-    Example path: contents.steps[0].step_number
-    """
-    msgs: List[str] = []
-    for err in e.errors():
-        loc = err.get("loc", ())
-        msg = err.get("msg", "Validation error")
-        parts: List[str] = []
-        for seg in loc:
-            if isinstance(seg, int):
-                parts.append(f"[{seg}]")
-            else:
-                if parts:  # dot before string segment (except at start)
-                    parts.append(".")
-                parts.append(str(seg))
-        path = "".join(parts) if parts else "<root>"
-        msgs.append(f"{path}: {msg}")
-    return msgs

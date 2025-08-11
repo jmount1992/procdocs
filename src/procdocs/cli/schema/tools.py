@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
+from pydantic import ValidationError
 
 from procdocs.core.app_context import AppContext
 from procdocs.core.schema.document_schema import DocumentSchema
+from procdocs.core.formatting import format_pydantic_errors_simple
 
 
 def register(subparsers):
@@ -83,30 +85,59 @@ def validate_schema(args, ctx: AppContext) -> int:
 
     # Try by name (valids only)
     try:
-        ctx.schemas.require(target)
-        print(f"Valid schema: {target}")
+        schema = ctx.schemas.require(target)
+        path_hint = next((e.path for e in ctx.schemas.valid_entries() if e.name == target), None)
+        print(f"Schema '{target}' is VALID{f'  ({path_hint})' if path_hint else ''}")
         return 0
     except Exception:
         pass
 
-    # Try as path (for invalids or unregistered files)
+    # Try as path (for invalid/unregistered files)
     p = Path(target)
     if p.exists():
         try:
-            DocumentSchema.from_file(p)  # will raise if invalid
-            print(f"Valid schema file: {p}")
+            _ = DocumentSchema.from_file(p)  # will raise ValidationError if invalid
+            print(f"Schema file is VALID  ({p})")
             return 0
+        except ValidationError as ve:
+            msgs = format_pydantic_errors_simple(ve)
+            print(f"\nSchema file is INVALID  ({p})")
+            for m in msgs:
+                print(f"  - {m}")
+            print(f"\n({len(msgs)} error{'s' if len(msgs)!=1 else ''})")
+            return 1
         except Exception as e:
-            print(f"Schema file invalid: {p}\n{e}")
+            # Non-pydantic failure
+            first = str(e).splitlines()[0]
+            print(f"\nSchema file is INVALID  ({p})")
+            print(f"  - {first}")
+            print("\n(1 error)")
             return 1
 
-    # Fallback: attempt to match invalid by stem or recorded name
+    # Fallback: lookup invalid entry recorded by the registry (by name or stem)
     matches = [e for e in ctx.schemas.invalid_entries()
-               if (e.path.stem == target or (e.name and e.name == target))]
+               if e.name == target or e.path.stem == target]
     if matches:
         e = matches[0]
-        print(f"Invalid schema: {target} ({e.path})\n{e.reason or ''}")
-        return 1
+        # Re-parse now to recover structured errors
+        try:
+            _ = DocumentSchema.from_file(e.path)  # expected to raise
+            # If it didn't, treat as valid (edge case where file changed since scan)
+            print(f"Schema '{target}' is now VALID  ({e.path})")
+            return 0
+        except ValidationError as ve:
+            msgs = format_pydantic_errors_simple(ve)
+            print(f"\nSchema '{target}' is INVALID  ({e.path})")
+            for m in msgs:
+                print(f"  - {m}")
+            print(f"\n({len(msgs)} error{'s' if len(msgs)!=1 else ''})")
+            return 1
+        except Exception as ex:
+            first = str(ex).splitlines()[0]
+            print(f"\nSchema '{target}' is INVALID  ({e.path})")
+            print(f"  - {first}")
+            print("\n(1 error)")
+            return 1
 
     print(f"Schema '{target}' not found by name or path.")
     return 1

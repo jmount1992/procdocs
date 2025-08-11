@@ -5,7 +5,7 @@ import pytest
 from types import SimpleNamespace
 
 from procdocs.core.constants import DEFAULT_TEXT_ENCODING
-from procdocs.core.document.document import Document, _format_pydantic_errors_simple
+from procdocs.core.document.document import Document
 from procdocs.core.schema.registry import SchemaRegistry
 
 
@@ -149,22 +149,6 @@ def test_document_validate_without_schema_or_registry_returns_error(tmp_path):
     assert errs and "No schema provided" in errs[0]
     # touches is_valid property too
     assert doc.is_valid is False
-
-
-def test__format_pydantic_errors_simple_handles_root_loc():
-    """
-    Exercise the '<root>' branch when Pydantic returns an error entry with empty 'loc'.
-    We feed a dummy object that quacks like a ValidationError.
-    """
-    dummy = SimpleNamespace(
-        errors=lambda: [
-            {"loc": (), "msg": "Something went boom"},  # empty loc -> '<root>'
-            {"loc": ("contents",), "msg": "Another issue"},  # normal path
-        ]
-    )
-    msgs = _format_pydantic_errors_simple(dummy)  # type: ignore[arg-type]
-    assert any(m.startswith("<root>: ") for m in msgs)
-    assert any(m.startswith("contents: ") for m in msgs)
 
 
 def test_document_from_json_str_helper_covers_path():

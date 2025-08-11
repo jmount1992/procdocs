@@ -7,7 +7,7 @@ from typing import Iterable, List, Tuple
 import yaml
 from pydantic import ValidationError
 
-from procdocs.core.config import load_config  # expects a config with .schema_roots or similar
+from procdocs.core.app_context import AppContext
 from procdocs.core.constants import DEFAULT_TEXT_ENCODING
 from procdocs.core.document.document import Document
 from procdocs.core.schema.registry import SchemaRegistry
@@ -28,24 +28,24 @@ def find_all_files(paths: Iterable[str | Path], recursive: bool = False) -> List
     return sorted(set(files))
 
 
-def _build_registry(cli_roots: Iterable[str | Path] | None) -> SchemaRegistry:
-    # Prefer CLI-provided roots, else fall back to config
-    if cli_roots:
-        roots = [Path(r) for r in cli_roots]
-    else:
-        cfg = load_config()  # your existing loader
-        # support either attr or dict style
-        roots = [Path(p) for p in getattr(cfg, "schema_roots", getattr(cfg, "schema_paths", []))]
-    reg = SchemaRegistry(roots)
-    reg.load()
-    return reg
+def _registry_for_run(args, ctx: AppContext) -> SchemaRegistry:
+    """
+    Prefer CLI-provided roots for this run; otherwise, use the preloaded registry from context.
+    When overriding, we build a temporary registry so we don't mutate global state.
+    """
+    if getattr(args, "schema_root", None):
+        roots = [Path(r) for r in args.schema_root]
+        reg = SchemaRegistry(roots)
+        reg.load(clear=True)
+        return reg
+    return ctx.schemas
 
 
 def validate_document(file_path: Path, registry: SchemaRegistry) -> Tuple[bool, str, List[str]]:
     """
     Returns: (is_valid, summary_message, error_list)
     """
-    # Fast check for metadata.document_type presence to improve UX on obviously broken files
+    # Quick YAML load for UX-friendly early errors
     try:
         raw = yaml.safe_load(file_path.read_text(encoding=DEFAULT_TEXT_ENCODING)) or {}
     except Exception as e:
@@ -60,20 +60,19 @@ def validate_document(file_path: Path, registry: SchemaRegistry) -> Tuple[bool, 
     try:
         doc = Document.from_file(file_path)
     except ValidationError as e:
-        # Pydantic error while parsing the document itself (e.g., wrong metadata shape)
-        # Keep it simple; print first few messages
-        msgs = [f"{'.'.join(map(str, err.get('loc', ()) )) or '<root>'}: {err.get('msg','Validation error')}" for err in e.errors()]
+        msgs = [f"{'.'.join(map(str, err.get('loc', ()))) or '<root>'}: {err.get('msg','Validation error')}"
+                for err in e.errors()]
         return False, f"{file_path}: Invalid document structure", msgs
 
     errors = doc.validate(registry=registry)
     if errors:
-        return False, f"{file_path}: Validation failed", errors
+        return False, f"{file_path}: Validation Failed", errors
 
-    return True, f"{file_path}: OK", []
+    return True, f"{file_path}: Validation Passed", []
 
 
-def main(args):
-    registry = _build_registry(getattr(args, "schema_root", None))
+def validate(args, ctx: AppContext) -> int:
+    registry = _registry_for_run(args, ctx)
 
     files = find_all_files(args.files, recursive=args.recursive)
     if not files:
@@ -83,8 +82,8 @@ def main(args):
     success = 0
     for fp in files:
         ok, msg, errs = validate_document(fp, registry)
-        if args.verbose or not ok:
-            print(msg)
+        print(f"\n{msg}")
+        if not ok:
             for e in errs:
                 print(f"  - {e}")
         if ok:
@@ -104,6 +103,6 @@ def register(subparser):
         "--schema-root",
         action="append",
         default=None,
-        help="Override schema roots (can be passed multiple times). If omitted, uses config schema_roots.",
+        help="Override schema roots just for this run (can be used multiple times).",
     )
-    parser.set_defaults(func=main)
+    parser.set_defaults(func=validate)

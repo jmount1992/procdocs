@@ -28,7 +28,14 @@ def render_yaml_template(schema: DocumentSchema, *, list_examples: int = 2) -> s
 
     seen_list_uids: Set[str] = set()
     for fd in schema.structure:
-        lines.extend(_render_field(fd, indent=2, list_examples=list_examples, seen_list_uids=seen_list_uids))
+        lines.extend(
+            _render_field(
+                fd,
+                indent=2,
+                list_examples=list_examples,
+                seen_list_uids=seen_list_uids,
+            )
+        )
 
     lines.append("")  # trailing newline
     return "\n".join(lines)
@@ -36,9 +43,24 @@ def render_yaml_template(schema: DocumentSchema, *, list_examples: int = 2) -> s
 
 # --- Internal Helpers --- #
 
-def _render_field(fd: FieldDescriptor, *, indent: int, list_examples: int,
-                  is_first_line: bool = False, in_list: bool = False,
-                  seen_list_uids: Optional[Set[str]] = None) -> List[str]:
+def _render_field(
+    fd: FieldDescriptor,
+    *,
+    indent: int,
+    list_examples: int,
+    is_first_line: bool = False,
+    in_list: bool = False,
+    seen_list_uids: Optional[Set[str]] = None,
+) -> List[str]:
+    """
+    Render one FieldDescriptor into YAML template lines.
+
+    - Scalars: inline placeholder `<required>` / `<optional>`
+    - Dicts: nested keys
+    - Lists:
+        * list of dicts -> N example items with nested fields
+        * list of scalars -> N example `- <placeholder>` entries
+    """
     if seen_list_uids is None:
         seen_list_uids = set()
 
@@ -46,36 +68,77 @@ def _render_field(fd: FieldDescriptor, *, indent: int, list_examples: int,
     comment = _comment(fd) or ("Required" if fd.required else "Optional")
     lines: List[str] = []
 
-    # scalar
-    if not fd.fields:
+    # Containers vs scalars
+    is_dict = fd.fieldtype == FieldType.DICT
+    is_list = fd.fieldtype == FieldType.LIST
+
+    if not is_dict and not is_list:
+        # Scalar
         placeholder = "<required>" if fd.required else "<optional>"
         lines.append(f"{prefix}{fd.fieldname}: {placeholder}  # {comment}")
         return lines
 
-    # container
+    # Container header
     if indent == 2:
-        lines.append(f"\n# {fd.fieldname.replace('-', ' ').title()} - {comment}")
+        lines.append(f"\n  # {fd.fieldname.replace('-', ' ').title()} - {comment}")
         lines.append(f"{prefix}{fd.fieldname}:")
     else:
         lines.append(f"{prefix}{fd.fieldname}:  # {comment}")
 
-    if fd.fieldtype == FieldType.LIST:
-        if fd.uid not in seen_list_uids:
-            lines.append(" " * child_indent + f"# Example list: '{fd.fieldname}' shows {list_examples} items.")
-            seen_list_uids.add(fd.uid)
-        # render N example items
+    if is_dict:
+        # Dict: render nested children
+        for child in _dict_fields(fd):
+            lines.extend(
+                _render_field(
+                    child,
+                    indent=child_indent,
+                    list_examples=list_examples,
+                    is_first_line=False,
+                    in_list=False,
+                    seen_list_uids=seen_list_uids,
+                )
+            )
+        return lines
+
+    # List
+    if fd.uid not in seen_list_uids:
+        lines.append(" " * child_indent + f"# Example list: '{fd.fieldname}' shows {max(1, list_examples)} items.")
+        seen_list_uids.add(fd.uid)
+
+    item_fd = _list_item(fd)
+
+    if item_fd.fieldtype == FieldType.DICT:
+        # list of dicts -> render each example item with child fields
+        children = _dict_fields(item_fd)
         for _ in range(max(1, list_examples)):
-            for idx, child in enumerate(fd.fields or []):
-                lines.extend(_render_field(child, indent=child_indent, list_examples=list_examples,
-                                           is_first_line=(idx == 0), in_list=True, seen_list_uids=seen_list_uids))
-    else:  # DICT
-        for child in fd.fields or []:
-            lines.extend(_render_field(child, indent=child_indent, list_examples=list_examples,
-                                       is_first_line=False, in_list=False, seen_list_uids=seen_list_uids))
+            for idx, child in enumerate(children):
+                lines.extend(
+                    _render_field(
+                        child,
+                        indent=child_indent,
+                        list_examples=list_examples,
+                        is_first_line=(idx == 0),
+                        in_list=True,
+                        seen_list_uids=seen_list_uids,
+                    )
+                )
+    else:
+        # list of scalars -> render `- <placeholder>` entries
+        placeholder = "<required>" if item_fd.required else "<optional>"
+        for i in range(max(1, list_examples)):
+            lines.append(" " * child_indent + f"- {placeholder}")
+
     return lines
 
 
 def _prefix(indent: int, is_first_line: bool, in_list: bool) -> tuple[str, int]:
+    """
+    Compute the YAML prefix and the next child indent.
+
+    - If this is the first line of a list item, prefix is "- " at current indent.
+    - If inside a list but not first line, indent shifts to align fields under the bullet.
+    - Otherwise, normal key indentation.
+    """
     if is_first_line:
         return " " * indent + "- ", indent + 2
     if in_list:
@@ -84,6 +147,10 @@ def _prefix(indent: int, is_first_line: bool, in_list: bool) -> tuple[str, int]:
 
 
 def _comment(fd: FieldDescriptor) -> str | None:
+    """
+    Build a compact inline comment string from descriptor metadata and spec.
+    Includes: optionality, description, default, string pattern, enum options.
+    """
     parts: List[str] = []
     if not fd.required:
         parts.append("optional")
@@ -91,8 +158,43 @@ def _comment(fd: FieldDescriptor) -> str | None:
         parts.append(fd.description)
     if fd.default is not None:
         parts.append(f"Default = {fd.default!r}")
-    if fd.pattern:
-        parts.append(f"Pattern: {fd.pattern}")
-    if fd.fieldtype == FieldType.ENUM and fd.options:
-        parts.append(f"Options: {', '.join(map(str, fd.options))}")
+
+    # string pattern
+    if fd.fieldtype == FieldType.STRING:
+        pat = _string_pattern(fd)
+        if pat:
+            parts.append(f"Pattern: {pat}")
+
+    # enum options
+    if fd.fieldtype == FieldType.ENUM:
+        opts = _enum_options(fd)
+        if opts:
+            parts.append(f"Options: {', '.join(map(str, opts))}")
+
     return ". ".join(parts) if parts else None
+
+
+# ---- spec accessors ---------------------------------------------------------
+
+def _dict_fields(fd: FieldDescriptor) -> List[FieldDescriptor]:
+    # fd is fieldtype == dict
+    spec = getattr(fd, "spec", None)
+    return list(getattr(spec, "fields", []) or [])
+
+
+def _list_item(fd: FieldDescriptor) -> FieldDescriptor:
+    # fd is fieldtype == list
+    spec = getattr(fd, "spec", None)
+    return getattr(spec, "item")  # canonical, always present after packing
+
+
+def _string_pattern(fd: FieldDescriptor) -> str | None:
+    spec = getattr(fd, "spec", None)
+    return getattr(spec, "pattern", None) if spec and fd.fieldtype == FieldType.STRING else None
+
+
+def _enum_options(fd: FieldDescriptor) -> List[str]:
+    spec = getattr(fd, "spec", None)
+    if spec and fd.fieldtype == FieldType.ENUM:
+        return list(getattr(spec, "options", []) or [])
+    return []
