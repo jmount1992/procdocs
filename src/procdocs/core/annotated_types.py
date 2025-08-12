@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+"""
+Reusable Annotated types and normalization helpers for ProcDocs models.
+"""
 
-import re
-from typing import Annotated, Optional
+from typing import Any, Annotated, Optional
 from pydantic import BeforeValidator
 
 from procdocs.core.constants import SCHEMA_NAME_ALLOWED_RE
@@ -9,37 +11,40 @@ from procdocs.core.constants import SCHEMA_NAME_ALLOWED_RE
 
 # --- Normalizers --- #
 
-def _normalize_schema_like_name(v) -> str:
+def _normalize_schema_name(v: Any) -> str:
     """
-    Normalize a schema-like identifier:
-    - convert to str
-    - strip whitespace
+    Normalize a schema/document type identifier:
+    - coerce to str
+    - strip surrounding whitespace
     - lowercase
-    - validate against SCHEMA_NAME_ALLOWED_RE
+    - validate via fullmatch against SCHEMA_NAME_ALLOWED_RE
     """
-    s = "" if v is None else str(v).strip().lower()
-    if not s:
+    text = "" if v is None else str(v).strip().lower()
+    if not text:
         raise ValueError("Invalid name: must be a non-empty string")
-    if not re.fullmatch(SCHEMA_NAME_ALLOWED_RE, s):
-        raise ValueError("Invalid name: allowed characters are [a-z0-9._-]")
-    return s
+    if not SCHEMA_NAME_ALLOWED_RE.fullmatch(text):
+        raise ValueError(
+            f"Invalid name: {text!r}. Allowed pattern: {SCHEMA_NAME_ALLOWED_RE.pattern!r}"
+        )
+    return text
 
 
-def _normalize_freeform_version(v) -> Optional[str]:
+def _normalize_freeform_version(v: Any) -> Optional[str]:
     """
     Normalize a free-form version string:
     - None stays None
-    - trim whitespace
-    - empty string -> None
+    - coerce to str and trim whitespace
+    - empty/whitespace-only -> None
+    - preserves case/content (no lowercasing)
     """
     if v is None:
         return None
-    s = str(v).strip()
-    return s if s != "" else None
+    text = str(v).strip()
+    return text if text != "" else None
 
 
 # --- Reusable Annotated types --- #
 
-SchemaName = Annotated[str, BeforeValidator(_normalize_schema_like_name)]
-DocumentTypeName = SchemaName  # semantic alias for document.metadata.document_type
+SchemaName = Annotated[str, BeforeValidator(_normalize_schema_name)]
+DocumentTypeName = SchemaName
 FreeFormVersion = Annotated[Optional[str], BeforeValidator(_normalize_freeform_version)]

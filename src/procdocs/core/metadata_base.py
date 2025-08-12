@@ -1,43 +1,47 @@
 #!/usr/bin/env python3
+"""
+ProcDocs core metadata primitives.
+
+This module defines :class:`BaseMetadata`, the root Pydantic model for all
+ProcDocs metadata blocks. It enforces a strict semantic version for the
+``format_version`` (library compatibility) and provides a free-form
+``extensions`` bag for user-defined keys, with light validation to avoid
+common mistakes (non-string or empty keys).
+"""
 
 from typing import Any
-from pydantic import (
-    BaseModel, ConfigDict,
-    Field, field_validator
-)
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from procdocs.core.constants import PROCDOCS_FORMAT_VERSION
 from procdocs.core.utils import (
     is_strict_semver,
     is_semver_at_least,
-    is_semver_before
+    is_semver_before,
 )
 
 
 class BaseMetadata(BaseModel):
     """
-    Base class for ProcDocs metadata blocks.
+    Minimal base class for ProcDocs metadata blocks.
 
-    Fields
-    ------
-    - `format_version` (required): the **ProcDocs format version** which governs which
-      metadata fields and validation rules are expected. This is not a user document/schema
-      version. The format version must follow semantic version rules (i.e., form x.y.z)
-    - `extensions` (optional): an explicit, free-form bag for user defined metadata keys. 
-      This allows the top-level namespace clean and prevents field typos from sneaking in.
+    Parameters
+    ----------
+    format_version:
+        ProcDocs format compatibility version (strict semver ``x.y.z``).
+        Defaults to the library's current version.
+    extensions:
+        Free-form key/value bag for user-defined metadata. Keys must be
+        non-empty strings. Values are unrestricted.
 
     Example
     -------
-        >>> from procdocs.core.base.base_metadata import BaseMetadata
-        >>> m = BaseMetadata(
-        ...     format_version="0.0.1",
-        ...     extensions={
-        ...         "created_by": "alice@example.com",
-        ...         "last_reviewed": "2025-08-09"
-        ...     }
-        ... )
-        >>> m.extensions["created_by"]
-        'alice@example.com'
+    >>> from procdocs.core.metadata_base import BaseMetadata
+    >>> m = BaseMetadata(
+    ...     format_version="0.0.1",
+    ...     extensions={"created_by": "alice@example.com"}
+    ... )
+    >>> m.extensions["created_by"]
+    'alice@example.com'
     """
 
     # Keep models strict at the top level; extensibility lives in `extensions`.
@@ -60,11 +64,32 @@ class BaseMetadata(BaseModel):
     @field_validator("format_version", mode="before")
     @classmethod
     def _validate_format_version(cls, v: str) -> str:
-        """Normalizes and validates the format version as strict semver"""
+        """Normalize and validate ``format_version`` as strict semver."""
         s = str(v).strip()
         if not is_strict_semver(s):
-            raise ValueError(f"Invalid format version: '{v}'")
+            raise ValueError(f"Invalid format version: {v!r}")
         return s
+
+    @field_validator("extensions")
+    @classmethod
+    def _validate_extensions(cls, ext: dict[str, Any]) -> dict[str, Any]:
+        """
+        Ensure extension keys are non-empty strings and normalize by stripping whitespace.
+        """
+        if not ext:
+            return ext
+        normalized: dict[str, Any] = {}
+        for k, val in ext.items():
+            if not isinstance(k, str):
+                raise ValueError(f"Extension keys must be strings, got {type(k).__name__}: {k!r}")
+            ks = k.strip()
+            if not ks:
+                raise ValueError("Extension keys must be non-empty strings.")
+            if ks in normalized and normalized[ks] is not val:
+                # Avoid silent overwrite when accidental whitespace duplicates occur.
+                raise ValueError(f"Duplicate extension key after normalization: {ks!r}")
+            normalized[ks] = val
+        return normalized
 
     # --- Helpers --- #
 
@@ -74,9 +99,9 @@ class BaseMetadata(BaseModel):
         return PROCDOCS_FORMAT_VERSION
 
     def format_version_at_least(self, threshold: str) -> bool:
-        """True if this metadata's format_version >= threshold."""
+        """Return True if ``self.format_version >= threshold`` (semver-aware)."""
         return is_semver_at_least(self.format_version, threshold)
 
     def format_version_before(self, threshold: str) -> bool:
-        """True if this metadata's format_version < threshold."""
+        """Return True if ``self.format_version < threshold`` (semver-aware)."""
         return is_semver_before(self.format_version, threshold)

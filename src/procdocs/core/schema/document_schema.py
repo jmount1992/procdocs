@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+"""
+DocumentSchema: ProcDocs JSON meta-schema for a document type.
+"""
 from __future__ import annotations
 
 import json
@@ -8,46 +11,51 @@ from typing import Iterable, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from procdocs.core.constants import DEFAULT_TEXT_ENCODING
+from procdocs.core.constants import DEFAULT_TEXT_ENCODING, SUPPORTED_SCHEMA_EXT
 from procdocs.core.schema.field_descriptor import FieldDescriptor, DictSpec, ListSpec
 from procdocs.core.schema.field_type import FieldType
 from procdocs.core.schema.metadata import SchemaMetadata
 
 
+# --- Model --- #
+
 class DocumentSchema(BaseModel):
     """
-    Meta-schema defining the structure of a document type.
+    ProcDocs meta-schema defining the structure of a document type.
 
-    - `metadata`: validated by `SchemaMetadata` (schema_name, format_version, etc.)
-    - `structure`: ordered list of `FieldDescriptor` entries
-    - On construction:
-        1) assigns a canonical private `_path` to all nodes
-        2) validates no duplicate `fieldname` values among siblings (recursively)
+    Fields:
+    -------
+    metadata:
+        is validated by `SchemaMetadata` (schema_name, format_version, etc.)
+    structure:
+        is an ordered list of `FieldDescriptor` entries (nested via specs)
 
-    Notes
-    -----
-    - ProcDocs schema definitions are **JSON only** (see `from_file()`).
-    - Field UIDs are computed from the canonical `_path` (see FieldDescriptor.uid).
-    - If you already have a dict or JSON string, prefer:
-        * `DocumentSchema.model_validate(<dict>)`
-        * `DocumentSchema.model_validate_json(<json_str>)`
+    Notes:
+    ------
+    On construction we:
+        1) assign a canonical private `_path` to all nodes (used for stable UIDs)
+        2) validate there are no duplicate `fieldname` values among siblings (recursively)
     """
 
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+    ConfigDict(validate_assignment=True, extra="forbid")
 
     metadata: SchemaMetadata = Field(...)
     structure: list[FieldDescriptor] = Field(default_factory=list)
 
     # --- Convenience --- #
+
     @property
     def schema_name(self) -> str:
+        """Canonical schema identifier (lowercased)."""
         return self.metadata.schema_name
 
     @property
     def format_version(self) -> str:
+        """ProcDocs format compatibility version (strict semver x.y.z)."""
         return self.metadata.format_version
 
-    # --- Normalization / validation --- #
+    # --- Normalization / Validation --- #
+
     @model_validator(mode="after")
     def _post_init(self) -> "DocumentSchema":
         # 1) assign canonical paths (used by FieldDescriptor.uid)
@@ -73,7 +81,8 @@ class DocumentSchema(BaseModel):
             # Recurse into LIST -> spec.item (single FieldDescriptor)
             if fd.fieldtype == FieldType.LIST:
                 spec: ListSpec = fd.spec  # type: ignore[assignment]
-                # The list's element gets a synthetic name under this node for UID stability
+                # Use '[]' in path to distinguish the element from the list node itself.
+                # This keeps FieldDescriptor.uid stable and unambiguous.
                 spec.item._path = f"{fd._path}[]/{spec.item.fieldname}"
                 # And recurse further in case the item is dict/list
                 cls._assign_paths([spec.item], parent_path=f"{fd._path}[]")
@@ -87,7 +96,7 @@ class DocumentSchema(BaseModel):
         dup_counts = {n: c for n, c in Counter(names).items() if c > 1}
         if dup_counts:
             details = ", ".join(f"{n} ×{c}" for n, c in sorted(dup_counts.items()))
-            raise ValueError(f"Duplicate field names at '{at_path}': {details}")
+            raise ValueError(f"Duplicate field names at {at_path!r}: {details}")
 
         for fd in fds:
             if fd.fieldtype == FieldType.DICT:
@@ -95,28 +104,31 @@ class DocumentSchema(BaseModel):
                 cls._check_no_duplicates(spec.fields, f"{at_path}.{fd.fieldname}")
             elif fd.fieldtype == FieldType.LIST:
                 spec: ListSpec = fd.spec  # type: ignore[assignment]
-                # The item itself may be a dict/list, recurse by treating it as a child list
+                # The item itself may be a dict/list; treat it as a child list in the path.
                 cls._check_no_duplicates([spec.item], f"{at_path}.{fd.fieldname}[]")
 
-    # --- File IO (JSON-only) --- #
+    # --- File IO --- #
+
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "DocumentSchema":
         """
         Load a DocumentSchema from a JSON file.
 
         Rules:
-        - Only `.json` is accepted (ProcDocs schema definitions are JSON-only).
+        - Only supported schema extensions are accepted (JSON-only at present).
         - File must exist; errors are explicit.
 
         Raises:
             FileNotFoundError: if the file does not exist
-            ValueError: if the file extension is not `.json`
+            ValueError: if the file extension is not supported
             ValidationError: if the payload fails model validation
         """
         p = Path(path)
         if not p.exists():
-            raise FileNotFoundError(f"The file '{p}' does not exist")
-        if p.suffix.lower() != ".json":
-            raise ValueError(f"Invalid schema file extension for '{p.name}'; expected a .json file")
+            raise FileNotFoundError(f"The file {str(p)!r} does not exist")
+        if p.suffix.lower() not in SUPPORTED_SCHEMA_EXT:
+            raise ValueError(
+                f"Invalid schema file extension for {p.name!r}; expected one of {sorted(SUPPORTED_SCHEMA_EXT)}"
+            )
         data = json.loads(p.read_text(encoding=DEFAULT_TEXT_ENCODING))
         return cls(**data)

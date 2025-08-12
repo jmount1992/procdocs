@@ -1,4 +1,20 @@
-# procdocs/core/loader/yaml_include.py
+#!/usr/bin/env python3
+
+# ------------------------------------------------------------------------------
+# PROTOTYPE / LEGACY NOTICE
+#
+# This module is part of the *prototype document render pipeline*.
+# It exists only to support the experimental CLI for rendering documents and
+# will likely be replaced in 0.2.0 when the render architecture is implemented.
+#
+# The final implementation will:
+#   - Use FieldType.REF for recursive includes
+#       (this file was created prior to that FieldType existing)
+#   - Provide a new YAML loader with full include resolution
+#
+# Until then, treat this file as temporary/legacy code.
+# ------------------------------------------------------------------------------
+
 from pathlib import Path
 from typing import Iterable, List
 import yaml

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from procdocs.core.app_context import AppContext
 from procdocs.core.schema.document_schema import DocumentSchema
-from procdocs.core.document_template_scaffold import write_yaml_template
+from procdocs.core.yaml_scaffold import write_yaml_template
 
 
 def generate(args, ctx: AppContext) -> int:

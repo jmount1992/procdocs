@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""
+Pydantic model for JSON document-schema metadata in ProcDocs.
+
+Defines the metadata required for schema files, built on top of `BaseMetadata`.
+"""
 
 from pydantic import Field
 
@@ -8,11 +13,15 @@ from procdocs.core.annotated_types import SchemaName, FreeFormVersion
 
 class SchemaMetadata(BaseMetadata):
     """
-    Metadata for JSON *document schemas*.
+    Metadata attached to a ProcDocs JSON document schema.
 
-    - `schema_name` (required): canonical, case-insensitive identifier for the schema.
-      The value is normalized to lowercase and must match ``SCHEMA_NAME_ALLOWED_RE``.
-    - `schema_version` (optional): free-form, trimmed only.
+    Fields
+    ------
+    schema_name:
+        Canonical, case-insensitive schema identifier. Normalized to lowercase and
+        validated against `SCHEMA_NAME_ALLOWED_RE`.
+    schema_version:
+        Optional, user-managed free-form label. Whitespace is trimmed; empty → None.
 
     Example
     -------
@@ -29,5 +38,11 @@ class SchemaMetadata(BaseMetadata):
     '0.3'
     """
 
-    schema_name: SchemaName = Field(...)
-    schema_version: FreeFormVersion = Field(default=None, description="Version label for this schema instance (user managed; free-form)")
+    schema_name: SchemaName = Field(
+        ...,
+        description="Canonical schema identifier (lowercased, validated).",
+    )
+    schema_version: FreeFormVersion = Field(
+        default=None,
+        description="Free-form version label for this schema (optional).",
+    )

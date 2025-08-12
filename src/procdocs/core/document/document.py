@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""
+ProcDocs document model (concrete YAML instance).
+
+- `metadata` is validated by `DocumentMetadata`
+- `contents` is a free-form mapping validated against a `DocumentSchema` at runtime
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -17,21 +23,19 @@ from procdocs.core.formatting import format_pydantic_errors_simple
 
 class Document(BaseModel):
     """
-    A concrete ProcDocs document:
-      - `metadata`: validated by DocumentMetadata
-      - `contents`: free-form mapping that can be validated against a DocumentSchema
+    A concrete ProcDocs document.
 
-    Use:
-        doc = Document.from_file("doc.yaml")
-        errors = doc.validate(registry=my_registry)   # auto-resolve by document_type
-        if not errors:
-            ... # good to render with Jinja etc.
+    Typical use:
+        >>> doc = Document.from_file("doc.yaml")
+        >>> errors = doc.validate(registry=my_registry)   # resolve by metadata.document_type
+        >>> if not errors:
+        ...     pass  # ready to render
     """
 
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+    ConfigDict(validate_assignment=True, extra="forbid")
 
-    metadata: DocumentMetadata = Field(...)
-    contents: Dict[str, Any] = Field(default_factory=dict)
+    metadata: DocumentMetadata = Field(..., description="Document metadata (validated).")
+    contents: Dict[str, Any] = Field(default_factory=dict, description="User content to validate against a schema.")
 
     # Keep last validation result (not serialized)
     _last_errors: List[str] = PrivateAttr(default_factory=list)
@@ -42,12 +46,17 @@ class Document(BaseModel):
     def from_file(cls, path: Union[str, Path]) -> "Document":
         """
         Load a document from a YAML file (.yml/.yaml).
+
+        Raises:
+            FileNotFoundError: if the file does not exist
+            ValueError: if the extension is not .yml/.yaml
+            ValidationError: if the loaded payload fails model validation
         """
         p = Path(path)
         if not p.exists():
-            raise FileNotFoundError(f"The file '{p}' does not exist")
+            raise FileNotFoundError(f"The file {str(p)!r} does not exist")
         if p.suffix.lower() not in {".yml", ".yaml"}:
-            raise ValueError(f"Invalid document file extension for '{p.name}'; expected a .yml/.yaml file")
+            raise ValueError(f"Invalid document file extension for {p.name!r}; expected a .yml/.yaml file")
         data = yaml.safe_load(p.read_text(encoding=DEFAULT_TEXT_ENCODING)) or {}
         return cls.model_validate(data)
 
@@ -57,9 +66,10 @@ class Document(BaseModel):
         """
         Validate this document against a schema.
 
-        - If `schema` is provided: validate against it.
-        - Else if `registry` is provided: resolve schema from `metadata.document_type`.
-        - Else: returns an error prompting for a schema or registry.
+        Resolution:
+        - If `schema` is provided, validate against it.
+        - Else if `registry` is provided, resolve using `metadata.document_type`.
+        - Else, return an error prompting for a schema or registry.
 
         Returns:
             List of human-readable error messages (empty list = valid).
@@ -83,7 +93,7 @@ class Document(BaseModel):
         # Check the metadata.document_type matches the schema name
         if self.metadata.document_type != schema.schema_name:
             errors.append(
-                f"metadata.document_type: '{self.metadata.document_type}' does not match schema '{schema.schema_name}'"
+                f"metadata.document_type: {self.metadata.document_type!r} does not match schema {schema.schema_name!r}"
             )
 
         # Validate contents shape & types via dynamic adapter
@@ -101,4 +111,5 @@ class Document(BaseModel):
 
     @property
     def is_valid(self) -> bool:
+        """True if the last `validate()` call produced no errors."""
         return len(self._last_errors) == 0

@@ -32,7 +32,7 @@ def test_schema_name_empty_raises(bad):
 
 @pytest.mark.parametrize("bad", ["bad name", "inv@lid", "slash/name", "star*name"])
 def test_schema_name_invalid_chars_raises(bad):
-    with pytest.raises(ValidationError, match="allowed characters"):
+    with pytest.raises(ValidationError, match="Allowed pattern"):
         _Dummy(name=bad)
 
 

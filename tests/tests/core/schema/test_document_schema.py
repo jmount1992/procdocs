@@ -63,7 +63,7 @@ def test_from_file_json_only_success(tmp_path):
 def test_from_file_non_json_extension_rejected(tmp_path):
     p = tmp_path / "schema.yaml"
     p.write_text("{}", encoding=DEFAULT_TEXT_ENCODING)
-    with pytest.raises(ValueError, match=r"expected a \.json file"):
+    with pytest.raises(ValueError, match="Invalid schema file extension for"):
         DocumentSchema.from_file(p)
 
 

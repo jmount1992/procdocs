@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+"""
+FieldDescriptor: the core Pydantic model describing one schema field.
+
+Authoring flow:
+- Users write flat JSON: common keys plus type-specific keys at the top level.
+- Pre-parse packs those into a typed `spec` based on `fieldtype`.
+- Serialization flattens `spec` back to the top level for clean authoring output.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -28,12 +36,13 @@ from procdocs.core.schema.field_specs import (
     rebuild_specs,
 )
 from procdocs.core import constants as C
-    # C.DEFAULT_TEXT_ENCODING, C.RESERVED_FIELDNAMES, C.FIELDNAME_ALLOWED_PATTERN
 from procdocs.core.utils import is_valid_fieldname_pattern
 
 
-# Registry of which *flat* keys belong to which FieldType.
-# For LIST we accept "item" (canonical) and "fields" (authoring sugar for dict elements).
+# --- Spec key registry --- #
+# Which flat keys belong to which FieldType. For LIST we accept:
+#  - "item"  (canonical)
+#  - "fields" (authoring sugar for a dict element schema)
 SPEC_REGISTRY: Dict[FieldType, tuple[Type[BaseModel], set[str]]] = {
     FieldType.STRING: (StringSpec, {"pattern"}),
     FieldType.NUMBER: (NumberSpec, set()),
@@ -45,44 +54,47 @@ SPEC_REGISTRY: Dict[FieldType, tuple[Type[BaseModel], set[str]]] = {
 }
 
 
+# --- Model --- #
+
 class FieldDescriptor(BaseModel):
     """
-    One field in a document meta‑schema.
+    One field in a ProcDocs document schema.
 
-    Authoring model (flat JSON):
-      - Users write type‑specific keys at the top level.
-      - We pack them into a typed `spec` based on `fieldtype`.
-      - When serializing, we flatten `spec` back to the top level.
+    Flat authoring:
+      - Common keys: fieldname, fieldtype, required, description, default
+      - Type-specific keys live at top-level but are packed into `spec` internally
 
-    Common keys:
-      - fieldname, fieldtype, required, description, default
-
-    Type‑specific (live in `spec`; authored flat):
+    Type-specific (live in `spec`; authored flat):
       - string:   pattern
       - enum:     options
       - dict:     fields (list[FieldDescriptor])
-      - list:     item (FieldDescriptor), OR authoring sugar: fields (list[FieldDescriptor])
-                  (no item shown when elements are dicts; default list is list[str])
+      - list:     item (FieldDescriptor)
+                  or authoring sugar: fields (list[FieldDescriptor]) for dict elements
+                  (default list is list[str] when no item/spec provided)
       - ref:      cardinality, allow_globs, must_exist, base_dir, extensions
     """
 
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
-    _path: str = PrivateAttr(default="")  # excluded from serialization
+    _path: str = PrivateAttr(default="")  # excluded from serialization; used for UID
 
     # Common
-    fieldname: str = Field(..., description="The name of the field")
-    fieldtype: FieldType = Field(default=FieldType.STRING, description="Field type")
-    required: bool = Field(default=True, description="Whether this field is required")
-    description: str | None = Field(default=None, description="Human-readable description")
-    default: Any | None = Field(default=None, description="Default value")
+    fieldname: str = Field(..., description="Name of the field.")
+    fieldtype: FieldType = Field(default=FieldType.STRING, description="Field type.")
+    required: bool = Field(default=True, description="Whether this field is required.")
+    description: str | None = Field(default=None, description="Human-readable description.")
+    default: Any | None = Field(default=None, description="Default value.")
 
     # Per-type spec (packed/unpacked automatically)
-    spec: FieldSpec | None = Field(default=None, description="Type-specific parameters")
+    spec: FieldSpec | None = Field(default=None, description="Type-specific parameters.")
 
-    # --- Pre-parse: pack flat keys into spec -------------------------------- #
+    # --- Pre-parse: pack flat keys into spec --- #
     @model_validator(mode="before")
     @classmethod
-    def _pack_flat_spec(cls, data: Any):
+    def _pack_flat_spec(cls, data: Any) -> Any:
+        """
+        Convert flat authoring keys into a typed `spec` based on `fieldtype`.
+        Also supports list sugar (`fields` -> synthesized `item` of type dict).
+        """
         if not isinstance(data, dict):
             return data
 
@@ -111,7 +123,7 @@ class FieldDescriptor(BaseModel):
                 # Render like "['pattern']" to match tests
                 allowed_fmt = "[" + ", ".join(repr(k) for k in sorted(allowed_keys)) + "]"
                 raise ValueError(
-                    f"Unexpected key(s) for fieldtype '{ft.value}': {sorted(suspicious)}. "
+                    f"Unexpected key(s) for fieldtype {ft.value!r}: {sorted(suspicious)}. "
                     f"Allowed: {allowed_fmt}"
                 )
 
@@ -120,7 +132,7 @@ class FieldDescriptor(BaseModel):
             # For lists, support authoring sugar: 'fields' instead of 'item'
             if ft == FieldType.LIST and "fields" in present_flat and "item" not in present_flat:
                 item_fd = {
-                    # synthesize internal name so FieldDescriptor validation passes
+                    # Synthesize internal name so FieldDescriptor validation passes
                     "fieldname": f"{(data.get('fieldname') or 'item')}_item",
                     "fieldtype": "dict",
                     "fields": present_flat["fields"],
@@ -141,41 +153,59 @@ class FieldDescriptor(BaseModel):
 
         # Minimal list authoring: no item/fields/spec -> default to list[str]
         if not has_flat and not has_spec and ft == FieldType.LIST:
-            data["spec"] = {"kind": "list", "item": {"fieldname": f"{(data.get('fieldname') or 'item')}_item",
-                                                      "fieldtype": "string"}}
+            data["spec"] = {
+                "kind": "list",
+                "item": {
+                    "fieldname": f"{(data.get('fieldname') or 'item')}_item",
+                    "fieldtype": "string",
+                },
+            }
 
         return data
 
-    # --- Computed UID -------------------------------------------------------- #
+    # --- Computed UID --- #
     @computed_field  # type: ignore[prop-decorator]
     @property
     def uid(self) -> str:
+        """Stable 10-char hash of the descriptor's `_path` (for references/UI)."""
         raw_encode = self._path.encode(C.DEFAULT_TEXT_ENCODING)
         return hashlib.sha1(raw_encode).hexdigest()[:10]
 
-    # --- Validators ---------------------------------------------------------- #
+    # --- Validators --- #
 
     @field_validator("fieldtype", mode="before")
     @classmethod
-    def _parse_fieldtype(cls, v):
+    def _parse_fieldtype(cls, v: Any) -> FieldType:
+        """Coerce incoming values to FieldType (unknowns → INVALID)."""
         return FieldType.parse(v)
 
     @field_validator("fieldname", mode="before")
     @classmethod
-    def _normalize_and_validate_fieldname(cls, v) -> str:
+    def _normalize_and_validate_fieldname(cls, v: Any) -> str:
+        """
+        Strip whitespace, reject reserved names, and enforce FIELDNAME_ALLOWED_RE.
+        """
         s = "" if v is None else str(v).strip()
         if not s:
             raise ValueError("The 'fieldname' key is not set")
         if s in C.RESERVED_FIELDNAMES:
-            raise ValueError(f"'{s}' is a reserved name and cannot be used")
+            raise ValueError(f"{s!r} is a reserved name and cannot be used")
         if not is_valid_fieldname_pattern(s):
             raise ValueError(
-                f"The fieldname '{s}' must match the pattern '{C.FIELDNAME_ALLOWED_PATTERN.pattern}'"
+                f"The fieldname {s!r} must match the pattern {C.FIELDNAME_ALLOWED_RE.pattern!r}"
             )
         return s
 
     @model_validator(mode="after")
-    def _post(self):
+    def _post(self) -> "FieldDescriptor":
+        """
+        Final validation:
+        - fieldtype must be known
+        - inject defaults for scalar/ref when spec omitted
+        - require explicit spec for enum/list/dict
+        - ensure spec.kind matches fieldtype
+        - extra checks for enum options (non-empty, unique)
+        """
         if self.fieldtype == FieldType.INVALID:
             raise ValueError("Unknown fieldtype; valid types are: string, number, boolean, list, dict, enum, ref")
 
@@ -206,9 +236,16 @@ class FieldDescriptor(BaseModel):
 
         return self
 
-    # --- Serializer: flatten spec back to top-level -------------------------- #
+    # --- Serializer: flatten spec back to top-level --- #
     @model_serializer(mode="plain")
-    def _dump_flat(self):
+    def _dump_flat(self) -> Dict[str, Any]:
+        """
+        Emit flat authoring shape, copying type-specific keys back to the top level.
+        - dict:  emits 'fields'
+        - list:  emits 'fields' if element is dict; otherwise emits 'item'
+                 (hides synthesized item fieldname)
+        - others: copies allowed knobs (pattern/options/ref knobs)
+        """
         base = {
             "fieldname": self.fieldname,
             "fieldtype": self.fieldtype.value,
@@ -261,6 +298,7 @@ class FieldDescriptor(BaseModel):
         return {**base, **flat_spec}
 
 
+# --- Forward-Ref Resolution --- #
 # Resolve forward refs for specs that point to FieldDescriptor
 FieldDescriptor.model_rebuild()
 rebuild_specs(FieldDescriptor)

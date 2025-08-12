@@ -1,20 +1,34 @@
 #!/usr/bin/env python3
+"""
+Application context wiring for ProcDocs.
+
+Aims to create a cohesive context of:
+- merged configuration
+- loaded schema registry
+- loaded template registry
+"""
 from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from procdocs.core.config import load_config
-from procdocs.core.schema.registry import SchemaRegistry 
+from procdocs.core.schema.registry import SchemaRegistry
 from procdocs.core.render.registry import TemplateRegistry
 
 
+# --- Data model --- #
+
 @dataclass(frozen=True)
 class AppContext:
+    """Immutable container for configuration and registries."""
     config: Dict[str, Any]
     schemas: SchemaRegistry
     templates: TemplateRegistry
 
+
+# --- Factory --- #
 
 def build_context(
     *,
@@ -23,6 +37,22 @@ def build_context(
     template_roots: Optional[Iterable[Path]] = None,
     preload: bool = True,
 ) -> AppContext:
+    """
+    Build an `AppContext`.
+
+    Args:
+        config:
+            Pre-merged configuration. If omitted, `load_config()` is used.
+        schema_roots:
+            Optional override for schema search paths. Defaults to `config['schema_paths']`.
+        template_roots:
+            Optional override for template search paths. Defaults to `config['render_template_paths']`.
+        preload:
+            If True, eagerly loads registries; otherwise, caller may load later.
+
+    Returns:
+        AppContext: immutable bundle of config, schema registry, and template registry.
+    """
     cfg = config or load_config()
 
     schema_paths = [Path(p) for p in (schema_roots or cfg.get("schema_paths", []))]
@@ -34,4 +64,5 @@ def build_context(
     if preload:
         schema_registry.load(clear=True)
         template_registry.load(clear=True)
+
     return AppContext(config=cfg, schemas=schema_registry, templates=template_registry)

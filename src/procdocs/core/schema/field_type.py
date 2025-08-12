@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
+"""
+Allowed field types for ProcDocs JSON document schemas.
+
+This module defines the `FieldType` enum used by schema validators and generators.
+It also includes small coercion/introspection helpers to map from arbitrary inputs
+or Python types to `FieldType` values.
+"""
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional, Type, Union
+from typing import Any
 
 
 class FieldType(str, Enum):
     """
-    Supported field types in a ProcDocs meta‑schema.
+    Supported field types in a ProcDocs schema.
 
-    - string   : textual scalar
-    - number   : numeric scalar (int or float)
-    - boolean  : true/false scalar
-    - list     : homogeneous list, may have nested item schema
-    - dict     : mapping/object with named nested fields
-    - enum     : string constrained to a fixed set of options
-    - ref      : reference(s) to file paths and/or globs
-    - invalid  : unrecognized type (returned by `parse`)
+    - string  : textual scalar
+    - number  : numeric scalar (int or float)
+    - boolean : true/false scalar
+    - list    : homogeneous list, may have nested item schema
+    - dict    : mapping/object with named nested fields
+    - enum    : string constrained to a fixed set of options
+    - ref     : reference(s) to file paths and/or globs
+    - invalid : unrecognized/unsupported type (returned by `parse`)
     """
 
     STRING = "string"
@@ -31,17 +38,22 @@ class FieldType(str, Enum):
     # --- Parsing helpers --- #
 
     @classmethod
-    def parse(cls, value: Union[str, "FieldType", None]) -> "FieldType":
+    def parse(cls, value: str | FieldType | None) -> FieldType:
         """
-        Coerce arbitrary input to a FieldType. Unknowns -> FieldType.INVALID.
+        Coerce arbitrary input to a `FieldType`.
 
-        Examples:
-            >>> FieldType.parse(" String ")
-            <FieldType.STRING: 'string'>
-            >>> FieldType.parse(None)
-            <FieldType.INVALID: 'invalid'>
-            >>> FieldType.parse("foo")
-            <FieldType.INVALID: 'invalid'>
+        - `FieldType` instance → returned as-is
+        - `None` or unknown strings → `FieldType.INVALID`
+        - strings are trimmed and lowercased before lookup
+
+        Examples
+        --------
+        >>> FieldType.parse(" String ")
+        <FieldType.STRING: 'string'>
+        >>> FieldType.parse(None)
+        <FieldType.INVALID: 'invalid'>
+        >>> FieldType.parse("foo")
+        <FieldType.INVALID: 'invalid'>
         """
         if isinstance(value, FieldType):
             return value
@@ -53,19 +65,18 @@ class FieldType(str, Enum):
             return cls.INVALID
 
     @classmethod
-    def try_parse(cls, value: Union[str, "FieldType", None]) -> Optional["FieldType"]:
+    def try_parse(cls, value: str | FieldType | None) -> FieldType | None:
         """
-        Like parse(), but returns None for unknowns instead of FieldType.INVALID.
-        Useful when you want to branch on 'known vs unknown' without carrying INVALID.
+        Like `parse`, but returns `None` for unknowns instead of `FieldType.INVALID`.
         """
         ft = cls.parse(value)
         return None if ft is cls.INVALID else ft
 
     @classmethod
-    def from_python_type(cls, t: Type) -> "FieldType":
+    def from_python_type(cls, t: type[Any]) -> FieldType:
         """
-        Best-effort mapping from a Python type object to a FieldType.
-        Unknowns -> FieldType.INVALID.
+        Best-effort mapping from a Python type object to a `FieldType`.
+        Unknowns -> `FieldType.INVALID`.
         """
         if t is str:
             return cls.STRING
@@ -82,17 +93,17 @@ class FieldType(str, Enum):
     # --- Introspection helpers --- #
 
     def is_scalar(self) -> bool:
-        """True for string/number/boolean/enum."""
+        """True if the field is a scalar (string, number, boolean, or enum)."""
         return self in {FieldType.STRING, FieldType.NUMBER, FieldType.BOOLEAN, FieldType.ENUM}
 
     def is_container(self) -> bool:
-        """True for list/dict."""
+        """True if the field is a container (list or dict)."""
         return self in {FieldType.LIST, FieldType.DICT}
 
     def allows_children(self) -> bool:
-        """True when nested content is allowed (list/dict)."""
+        """True if nested content is allowed (list or dict)."""
         return self.is_container()
 
     def is_numeric(self) -> bool:
-        """True when the field is numeric (number)."""
+        """True if the field is numeric (`number`)."""
         return self is FieldType.NUMBER

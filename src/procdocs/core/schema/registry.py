@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
+"""
+SchemaRegistry: discover, deduplicate, and serve ProcDocs JSON document schemas.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
+from procdocs.core.constants import SUPPORTED_SCHEMA_EXT
 from procdocs.core.schema.document_schema import DocumentSchema
 from procdocs.core.runtime_model import build_contents_adapter
 
@@ -28,7 +32,7 @@ class SchemaEntry:
 
 class SchemaRegistry:
     """
-    Loads and caches DocumentSchemas (JSON-only) from one or more roots,
+    Loads and caches `DocumentSchema` objects from one or more roots,
     builds contents adapters, and exposes entries (valid + invalid) for UX.
 
     Duplicate policy: newest mtime wins; older duplicates are marked invalid.
@@ -41,9 +45,15 @@ class SchemaRegistry:
         self._valid_entries_by_name: Dict[str, SchemaEntry] = {}
         self._loaded: bool = False
 
-    # ----- Loading ------------------------------------------------------------
+    # --- Loading --- #
 
     def load(self, *, clear: bool = True) -> None:
+        """
+        Scan roots for schema files, parse, and apply duplicate resolution.
+
+        Args:
+            clear: if True, clears prior state before loading.
+        """
         if clear:
             self._schemas.clear()
             self._entries.clear()
@@ -55,11 +65,17 @@ class SchemaRegistry:
         for root in self._roots:
             if not root.exists():
                 continue
-            for p in root.rglob("*.json"):
+
+            # Find all supported schema files under this root
+            for p in root.rglob("*"):
+                if not p.is_file() or p.suffix.lower() not in SUPPORTED_SCHEMA_EXT:
+                    continue
+
                 try:
                     schema = DocumentSchema.from_file(p)
                     name = schema.schema_name.strip().lower()
-                    version = getattr(schema, "schema_version", None)
+                    # BUGFIX: version lives under metadata
+                    version = schema.metadata.schema_version
                     candidates.setdefault(name, []).append((p.resolve(), schema, version))
                 except Exception as e:
                     # Could not parse -> invalid entry recorded with filename stem as name
@@ -81,14 +97,15 @@ class SchemaRegistry:
 
             # Record winner
             self._schemas[name] = winner_schema
-            self._valid_entries_by_name[name] = SchemaEntry(
+            winner_entry = SchemaEntry(
                 name=name,
                 path=winner_path,
                 valid=True,
                 reason="kept",
                 version=winner_version,
             )
-            self._entries.append(self._valid_entries_by_name[name])
+            self._valid_entries_by_name[name] = winner_entry
+            self._entries.append(winner_entry)
 
             # Warm adapter cache
             build_contents_adapter(winner_schema)
@@ -107,7 +124,7 @@ class SchemaRegistry:
 
         self._loaded = True
 
-    # ----- Query API ----------------------------------------------------------
+    # --- Query API --- #
 
     def get(self, schema_name: str) -> Optional[DocumentSchema]:
         """Return loaded (valid) schema by name (case-insensitive), or None."""
@@ -117,7 +134,7 @@ class SchemaRegistry:
         """Return loaded schema by name or raise LookupError if not found/invalid."""
         s = self.get(schema_name)
         if not s:
-            raise LookupError(f"Schema '{schema_name}' not found")
+            raise LookupError(f"Schema {schema_name!r} not found")
         return s
 
     def names(self) -> list[str]:
@@ -129,9 +146,11 @@ class SchemaRegistry:
         return list(self._entries)
 
     def valid_entries(self) -> List[SchemaEntry]:
+        """Only valid entries (winners)."""
         return [e for e in self._entries if e.valid]
 
     def invalid_entries(self) -> List[SchemaEntry]:
+        """Only invalid entries (parse errors, duplicates dropped)."""
         return [e for e in self._entries if not e.valid]
 
     def get_entry(self, name: str) -> Optional[SchemaEntry]:
@@ -140,8 +159,10 @@ class SchemaRegistry:
 
     @property
     def loaded(self) -> bool:
+        """True if a load() has completed."""
         return self._loaded
 
     @property
     def roots(self) -> List[Path]:
+        """Roots scanned by this registry."""
         return list(self._roots)

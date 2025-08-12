@@ -1,54 +1,96 @@
 #!/usr/bin/env python3
+"""
+Pydantic spec models for schema field types.
+
+These per-type specs are consumed by FieldDescriptor to describe nested structure
+(e.g., dict fields) and constraints (e.g., enum options).
+"""
 from __future__ import annotations
 
 from typing import Annotated, Literal, Optional, Union, List
 from pydantic import BaseModel, Field
 
 
-# ---------------------------------------------------------------------------
-# Per‑type spec models
-# ---------------------------------------------------------------------------
+# --- Per-type spec models --- #
 
 class StringSpec(BaseModel):
+    """Specification for a string field (optional regex constraint)."""
     kind: Literal["string"] = "string"
-    pattern: Optional[str] = Field(default=None, description="Regex applied to string values only")
+    pattern: Optional[str] = Field(
+        default=None,
+        description="Regex applied to string values only.",
+    )
 
 
 class NumberSpec(BaseModel):
+    """Specification for a numeric field (int or float)."""
     kind: Literal["number"] = "number"
-    # room for min/max, integral_only, etc.
 
 
 class BooleanSpec(BaseModel):
+    """Specification for a boolean field."""
     kind: Literal["boolean"] = "boolean"
 
 
 class EnumSpec(BaseModel):
+    """Specification for an enum field (string constrained to fixed options)."""
     kind: Literal["enum"] = "enum"
-    options: List[str] = Field(min_length=1, description="Allowed enum values")
+    options: List[str] = Field(
+        min_length=1,
+        description="Allowed enum values (non-empty list).",
+    )
 
 
 class DictSpec(BaseModel):
+    """Specification for a dict/object with named nested fields."""
     kind: Literal["dict"] = "dict"
-    # NOTE: forward ref to FieldDescriptor to avoid import cycle
-    fields: List["FieldDescriptor"] = Field(min_length=1, description="Nested named fields")
+    fields: List["FieldDescriptor"] = Field(
+        min_length=1,
+        description="Nested named fields (at least one).",
+    )
 
 
 class ListSpec(BaseModel):
+    """Specification for a homogeneous list of items, with one element schema."""
     kind: Literal["list"] = "list"
-    # Canonical internal model: exactly one element schema repeated.
-    # NOTE: forward ref to FieldDescriptor to avoid import cycle
-    item: "FieldDescriptor" = Field(..., description="Schema describing each list element")
+    item: "FieldDescriptor" = Field(
+        ...,
+        description="Schema describing each list element.",
+    )
 
 
 class RefSpec(BaseModel):
-    kind: Literal["ref"] = "ref"
-    cardinality: Literal["one", "many"] = Field(default="one", description="One file or a list of files")
-    allow_globs: bool = Field(default=False, description="Permit {glob: pattern} items when many")
-    must_exist: bool = Field(default=False, description="Require files to exist at validation time")
-    base_dir: Optional[str] = Field(default=None, description="Resolve relative paths from here")
-    extensions: Optional[List[str]] = Field(default=None, description="Restrict to these file extensions")
+    """
+    Specification for file/path references.
 
+    Semantics (resolution, existence checks) are enforced by higher-level tooling.
+    """
+    kind: Literal["ref"] = "ref"
+    cardinality: Literal["one", "many"] = Field(
+        default="one",
+        description="Single file ('one') or a list of files ('many').",
+    )
+    allow_globs: bool = Field(
+        default=False,
+        description="Permit glob patterns when cardinality is 'many'.",
+    )
+    must_exist: bool = Field(
+        default=False,
+        description="Require files to exist at validation time.",
+    )
+    base_dir: Optional[str] = Field(
+        default=None,
+        description="Resolve relative paths from this directory.",
+    )
+    extensions: Optional[List[str]] = Field(
+        default=None,
+        description="Restrict to these file extensions (e.g., ['.yml', '.yaml']).",
+    )
+
+
+# --- Discriminated union of all per-type specs --- #
+# Used by FieldDescriptor to accept/validate the correct spec model
+# based on the 'kind' field in schema JSON.
 
 FieldSpec = Annotated[
     Union[StringSpec, NumberSpec, BooleanSpec, EnumSpec, DictSpec, ListSpec, RefSpec],
@@ -56,17 +98,15 @@ FieldSpec = Annotated[
 ]
 
 
-# ---------------------------------------------------------------------------
-# Forward‑ref rebuild utility (called after FieldDescriptor is defined)
-# ---------------------------------------------------------------------------
+# --- Forward-Ref Rebuild Utility --- #
 
 def rebuild_specs(FieldDescriptor: type) -> None:
     """
     Resolve forward references to FieldDescriptor after it is defined.
-    Called from field_descriptor.py once FieldDescriptor exists.
 
-    We inject the class into this module's globals so Pydantic can
-    resolve the string annotation "FieldDescriptor" during model_rebuild().
+    Must be called by the module that defines FieldDescriptor, once the class exists.
+    Injects FieldDescriptor into this module's globals so Pydantic can resolve the
+    string annotations during model_rebuild().
     """
     globals()["FieldDescriptor"] = FieldDescriptor
     for cls in (DictSpec, ListSpec):

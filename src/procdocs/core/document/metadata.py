@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""
+Pydantic model for document metadata in ProcDocs.
+
+Defines the user-facing metadata required for document instances, built on top of
+`BaseMetadata`.
+"""
 
 from pydantic import Field
 
@@ -8,20 +14,15 @@ from procdocs.core.annotated_types import DocumentTypeName, FreeFormVersion
 
 class DocumentMetadata(BaseMetadata):
     """
-    Metadata for concrete YAML documents.
+    Metadata attached to a ProcDocs YAML document instance.
 
-    - `document_type` (required): canonical, case-insensitive reference to the target
-      schema's name. Normalized to lowercase and must match ``SCHEMA_NAME_ALLOWED_RE``.
-    - `document_version` (optional): user-managed, free-form label for this document
-      instance; whitespace is trimmed and blank values become `None`.
-
-    Notes
-    -----
-    - Inherits from `BaseMetadata`, which:
-        - enforces strict semver for `format_version`,
-        - forbids unknown top-level fields (`extra="forbid"`),
-        - provides an `extensions: dict[str, Any]` bag for user-defined metadata.
-    - Use `document_type` to select/validate against the corresponding schema.
+    Fields
+    ------
+    document_type:
+        Canonical, case-insensitive schema name. Normalized to lowercase and
+        validated against `SCHEMA_NAME_ALLOWED_RE`.
+    document_version:
+        Optional, user-managed free-form label. Whitespace is trimmed; empty → None.
 
     Example
     -------
@@ -40,5 +41,11 @@ class DocumentMetadata(BaseMetadata):
     'alice'
     """
 
-    document_type: DocumentTypeName = Field(...)
-    document_version: FreeFormVersion = Field(default=None, description="Version label for this document instance (user managed; free-form)")
+    document_type: DocumentTypeName = Field(
+        ...,
+        description="Canonical schema name for this document (lowercased, validated).",
+    )
+    document_version: FreeFormVersion = Field(
+        default=None,
+        description="Free-form version label for this document instance (optional).",
+    )

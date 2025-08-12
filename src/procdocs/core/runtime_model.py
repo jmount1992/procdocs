@@ -1,35 +1,13 @@
 #!/usr/bin/env python3
-
 """
-runtime_model.py
-================
+Runtime compilation of a `DocumentSchema` into a Pydantic validator for document contents.
 
-This module provides a bridge between a static ProcDocs `DocumentSchema`
-and a dynamic, runtime-generated Pydantic model that can be used to
-validate document *contents* directly.
-
-Purpose
--------
-- Take a `DocumentSchema` instance (loaded from JSON) and compile it into
-  an equivalent Pydantic model class at runtime.
-- Use that model to validate `contents` dictionaries from YAML/JSON documents.
-- Ensure validation behavior is consistent with the schema definition,
-  including field types, required/optional status, patterns, and nested structures.
-
-Usage
------
-    from procdocs.core.runtime_model import build_contents_adapter
-    from procdocs.core.schema.document_schema import DocumentSchema
-
-    schema = DocumentSchema.from_file("schemas/test_doc.json")
-    ContentsModel = build_contents_adapter(schema)
-
-    # Validate some loaded document contents
-    document = ContentsModel(**document_dict["contents"])  # Raises ValidationError if invalid
+- Build (and cache) a `TypeAdapter` that validates a `contents` dict.
+- Mirror schema constraints: required/optional, patterns, enums, nested dict/list, refs.
 """
+from __future__ import annotations
 
-
-from typing import Any, Dict, List, Annotated, Literal, Iterable, Optional
+from typing import Annotated, Any, Dict, Iterable, Optional
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter, create_model
 from pydantic.types import StringConstraints
@@ -46,14 +24,16 @@ from procdocs.core.schema.field_descriptor import (
 from procdocs.core.schema.field_type import FieldType
 
 
+# --- Adapter cache --- #
+
 # Cache of adapters keyed by schema fingerprint
 _ADAPTER_CACHE: Dict[str, TypeAdapter] = {}
 
 
 def build_contents_adapter(schema: DocumentSchema) -> TypeAdapter:
     """
-    Build (or fetch cached) a Pydantic TypeAdapter that validates the *contents*
-    dict for the given schema.
+    Build (or fetch cached) a Pydantic `TypeAdapter` that validates the *contents*
+    mapping for the given schema.
     """
     key = _schema_fingerprint(schema)
     if key in _ADAPTER_CACHE:
@@ -65,15 +45,16 @@ def build_contents_adapter(schema: DocumentSchema) -> TypeAdapter:
     return adapter
 
 
-# --- internals --- #
+# --- Internals --- #
 
 def _schema_fingerprint(schema: DocumentSchema) -> str:
     """
     Stable cache key over structure + schema identity.
-    Uses canonical paths, field types, and type-specific knobs (pattern/options)
-    where relevant.
+
+    Incorporates canonical paths, field types, and type-specific knobs
+    (e.g., string pattern, enum options, ref cardinality).
     """
-    parts: List[str] = [schema.schema_name, schema.format_version]
+    parts: list[str] = [schema.schema_name, schema.format_version]
     for fd in _walk(schema.structure):
         parts.append(fd._path)
         parts.append(fd.fieldtype.value)
@@ -90,7 +71,7 @@ def _schema_fingerprint(schema: DocumentSchema) -> str:
     return "|".join(parts)
 
 
-def _walk(fields: Iterable[FieldDescriptor]):
+def _walk(fields: Iterable[FieldDescriptor]) -> Iterable[FieldDescriptor]:
     """
     Depth-first walk over FieldDescriptors, descending into DICT/LIST children
     via their specs.
@@ -107,13 +88,15 @@ def _walk(fields: Iterable[FieldDescriptor]):
 
 
 class _StrictModel(BaseModel):
+    """Base model with `extra="forbid"` baked in for generated models."""
     model_config = ConfigDict(extra="forbid")
 
 
-def _model_for_fields(fields: List[FieldDescriptor], model_name: str):
+def _model_for_fields(fields: list[FieldDescriptor], model_name: str) -> type[_StrictModel]:
     """
     Create a Pydantic model class for an object with the given FieldDescriptors.
-    Unknown keys will be rejected (extra="forbid" baked into the base).
+
+    Unknown keys are rejected via the `_StrictModel` base.
     """
     field_defs: Dict[str, tuple[type, Any]] = {}
     for fd in fields:
@@ -121,12 +104,12 @@ def _model_for_fields(fields: List[FieldDescriptor], model_name: str):
         # required: `...`; optional: None; default: concrete default value
         default = ... if fd.required and fd.default is None else (fd.default if fd.default is not None else None)
         field_defs[fd.fieldname] = (t, default)
-    return create_model(model_name, __base__=_StrictModel, **field_defs)  # type: ignore
+    return create_model(model_name, __base__=_StrictModel, **field_defs)  # type: ignore[return-value]
 
 
-def _py_type_for(fd: FieldDescriptor):
+def _py_type_for(fd: FieldDescriptor) -> type | object:
     """
-    Map a FieldDescriptor to a Python typing object (or a Pydantic model)
+    Map a FieldDescriptor to a typing object (or generated Pydantic model)
     describing the expected value shape for contents validation.
     """
     ft = fd.fieldtype
@@ -134,7 +117,7 @@ def _py_type_for(fd: FieldDescriptor):
     if ft == FieldType.STRING:
         pat = _string_pattern(fd)
         if pat:
-            return Annotated[str, StringConstraints(pattern=pat)]
+            return Annotated[str, StringConstraints(pattern=pat)]  # type: ignore[name-defined]  # pyright: ignore[reportUndefinedVariable]
         return str
 
     if ft == FieldType.NUMBER:
@@ -146,8 +129,10 @@ def _py_type_for(fd: FieldDescriptor):
 
     if ft == FieldType.ENUM:
         opts = _enum_options(fd)
-        # EnumSpec guarantees non-empty options by schema validation
-        return Literal[tuple(opts)]  # type: ignore
+        # Note: relying on Literal[(...)] shape as accepted by Pydantic's TypeAdapter.
+        # This intentionally constructs a Literal with the tuple of allowed choices.
+        from typing import Literal  # local import to avoid polluting module namespace
+        return Literal[tuple(opts)]  # type: ignore[misc,valid-type]
 
     if ft == FieldType.DICT:
         sub = _model_for_fields(_dict_fields(fd), model_name=f"{fd.fieldname.title()}Obj")
@@ -156,31 +141,31 @@ def _py_type_for(fd: FieldDescriptor):
     if ft == FieldType.LIST:
         item_fd = _list_item(fd)
         elem_type = _py_type_for(item_fd)
-        return List[elem_type]  # type: ignore
+        return list[elem_type]  # type: ignore[valid-type]
 
     if ft == FieldType.REF:
         # Treat as str or list[str] based on cardinality; path existence/globs are
         # enforced in higher layers (resolver/validator), not here.
         spec = _ref_spec(fd)
-        return (str if spec.cardinality == "one" else List[str])  # type: ignore
+        return (str if spec.cardinality == "one" else list[str])
 
     # Fallback (should not occur with prior schema validation)
     return Any
 
 
-# ----- spec accessors (no legacy) ------------------------------------------------ #
+# --- Spec Accessors --- #
 
 def _string_pattern(fd: FieldDescriptor) -> Optional[str]:
     spec: StringSpec = fd.spec  # type: ignore[assignment]
     return spec.pattern if fd.fieldtype == FieldType.STRING else None
 
 
-def _enum_options(fd: FieldDescriptor) -> List[str]:
+def _enum_options(fd: FieldDescriptor) -> list[str]:
     spec: EnumSpec = fd.spec  # type: ignore[assignment]
     return list(spec.options) if fd.fieldtype == FieldType.ENUM else []
 
 
-def _dict_fields(fd: FieldDescriptor) -> List[FieldDescriptor]:
+def _dict_fields(fd: FieldDescriptor) -> list[FieldDescriptor]:
     spec: DictSpec = fd.spec  # type: ignore[assignment]
     return spec.fields
 

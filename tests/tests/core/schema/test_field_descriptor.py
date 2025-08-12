@@ -41,8 +41,8 @@ def test_reserved_fieldname_raises(monkeypatch):
 def test_fieldname_pattern_violation_raises():
     bad = "bad name"
     import re
-    from procdocs.core.constants import FIELDNAME_ALLOWED_PATTERN
-    expected = re.escape(f"must match the pattern '{FIELDNAME_ALLOWED_PATTERN.pattern}'")
+    from procdocs.core.constants import FIELDNAME_ALLOWED_RE
+    expected = re.escape(f"must match the pattern '{FIELDNAME_ALLOWED_RE.pattern}'")
     with pytest.raises(ValidationError, match=expected):
         FieldDescriptor(fieldname=bad)
 

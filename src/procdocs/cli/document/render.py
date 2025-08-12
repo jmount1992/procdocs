@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
+
+# ------------------------------------------------------------------------------
+# PROTOTYPE / LEGACY NOTICE
+#
+# This module is part of the *prototype document render pipeline*.
+# It exists only to support the experimental CLI for rendering documents and
+# will likely be replaced in 0.2.0 when the render architecture is implemented.
+#
+# Until then, treat this file as temporary/legacy code.
+# ------------------------------------------------------------------------------
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from pydantic import ValidationError
 

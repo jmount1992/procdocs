@@ -46,7 +46,7 @@ def test_invalid_empty_schema_name_raises(bad_name):
 
 @pytest.mark.parametrize("bad_name", ["bad name", "inv@lid", "slash/name", "star*name"])
 def test_invalid_schema_name_chars_raises(bad_name):
-    with pytest.raises(ValidationError, match="allowed characters"):
+    with pytest.raises(ValidationError, match="Allowed pattern"):
         SchemaMetadata(schema_name=bad_name)
 
 
@@ -70,7 +70,7 @@ def test_assignment_normalizes_and_validates_schema_name():
 
 def test_assignment_invalid_schema_name_raises():
     md = SchemaMetadata(schema_name="test")
-    with pytest.raises(ValidationError, match="allowed characters"):
+    with pytest.raises(ValidationError, match="Allowed pattern"):
         md.schema_name = "bad name!"
 
 

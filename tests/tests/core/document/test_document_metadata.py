@@ -46,7 +46,7 @@ def test_invalid_empty_document_type_raises(bad):
 
 @pytest.mark.parametrize("bad", ["bad name", "inv@lid", "slash/name", "star*name"])
 def test_invalid_document_type_chars_raises(bad):
-    with pytest.raises(ValidationError, match="allowed characters"):
+    with pytest.raises(ValidationError, match="Allowed pattern"):
         DocumentMetadata(document_type=bad)
 
 
@@ -70,7 +70,7 @@ def test_assignment_normalizes_and_validates_document_type():
 
 def test_assignment_invalid_document_type_raises():
     md = DocumentMetadata(document_type="test")
-    with pytest.raises(ValidationError, match="allowed characters"):
+    with pytest.raises(ValidationError, match="Allowed pattern"):
         md.document_type = "bad name!"
 
 

@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 
-from pathlib import Path
+# ------------------------------------------------------------------------------
+# PROTOTYPE / LEGACY NOTICE
+#
+# This module is part of the *prototype document render pipeline*.
+# It exists only to support the experimental CLI for rendering documents and
+# will likely be replaced in 0.2.0 when the render architecture is implemented.
+#
+# Until then, treat this file as temporary/legacy code.
+# ------------------------------------------------------------------------------
 
 from procdocs.core.app_context import AppContext
 
