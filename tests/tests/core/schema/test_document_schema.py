@@ -2,6 +2,7 @@
 import json
 import hashlib
 import pytest
+from pathlib import Path
 
 from procdocs.core.constants import DEFAULT_TEXT_ENCODING
 from procdocs.core.schema.document_schema import DocumentSchema
@@ -145,3 +146,73 @@ def test_assignment_into_existing_fielddescriptor_respects_path():
     assert ds.structure[0]._path == "root"
     # dict child path
     assert ds.structure[1].spec.fields[0]._path == "parent/child"  # type: ignore[attr-defined]
+
+
+
+def test_duplicate_fieldnames_in_list_item_dict_raises():
+    """
+    Covers the LIST branch of _check_no_duplicates():
+      structure.items[] -> item is DICT -> duplicate among item.spec.fields
+    """
+    payload = {
+        "metadata": {"schema_name": "x"},
+        "structure": [
+            {
+                "fieldname": "items",
+                "fieldtype": "list",
+                "item": {
+                    "fieldname": "row",
+                    "fieldtype": "dict",
+                    "fields": [
+                        {"fieldname": "a"},
+                        {"fieldname": "a"},   # duplicate inside the dict held by the list item
+                    ],
+                },
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match=r"Duplicate field names at 'structure\.items\[\]\.row'"):
+        DocumentSchema.model_validate(payload)
+
+
+def test_assign_paths_nested_under_list_of_dict():
+    """
+    Happy path: LIST whose item is a DICT with unique children.
+    Ensures _assign_paths sets canonical paths for nested children beneath '[]'.
+    """
+    payload = {
+        "metadata": {"schema_name": "ok"},
+        "structure": [
+            {
+                "fieldname": "items",
+                "fieldtype": "list",
+                "item": {
+                    "fieldname": "row",
+                    "fieldtype": "dict",
+                    "fields": [
+                        {"fieldname": "a"},
+                        {"fieldname": "b"},
+                    ],
+                },
+            }
+        ],
+    }
+    ds = DocumentSchema.model_validate(payload)
+    item = ds.structure[0]
+    # item path
+    assert item._path == "items"
+    # list element path uses '[]', and dict children extend from that
+    assert item.spec.item._path == "items[]/row"          # type: ignore[attr-defined]
+    child_paths = [fd._path for fd in item.spec.item.spec.fields]  # type: ignore[attr-defined]
+    assert child_paths == ["items[]/row/a", "items[]/row/b"]
+
+
+def test_from_file_accepts_uppercase_json_extension(tmp_path: Path):
+    payload = {
+        "metadata": {"schema_name": "Demo"},
+        "structure": [{"fieldname": "id"}],
+    }
+    p = tmp_path / "schema.JSON"  # uppercase
+    p.write_text(json.dumps(payload), encoding=DEFAULT_TEXT_ENCODING)
+    ds = DocumentSchema.from_file(p)
+    assert ds.schema_name == "demo"

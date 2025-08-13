@@ -84,3 +84,44 @@ def test_invalid_format_version_from_parent_rules():
 def test_valid_format_version_override():
     md = DocumentMetadata(document_type="test", format_version="1.2.3")
     assert md.format_version == "1.2.3"
+
+
+# --- Round-trip stability --- #
+
+def test_round_trip_dump_and_validate_preserves_normalization():
+    md = DocumentMetadata(
+        document_type="  Test.Schema-01  ",
+        document_version="  V1-ALPHA  ",
+        extensions={" author ": "alice"},
+    )
+    dumped = md.model_dump()
+    # values should already be normalized in the dump
+    assert dumped["document_type"] == "test.schema-01"
+    assert dumped["document_version"] == "V1-ALPHA"
+    assert " author " not in dumped["extensions"] and dumped["extensions"]["author"] == "alice"
+
+    # Re-validate from dumped dict (simulates serialize->load)
+    md2 = DocumentMetadata.model_validate(dumped)
+    assert md2 == md  # pydantic compares field values
+
+
+# --- Assignment semantics for document_version --- #
+
+def test_document_version_assignment_trims_and_preserves_case():
+    md = DocumentMetadata(document_type="test")
+    md.document_version = "  V2-Alpha  "
+    assert md.document_version == "V2-Alpha"  # trimmed, case preserved
+
+
+def test_document_version_assignment_blank_becomes_none():
+    md = DocumentMetadata(document_type="test", document_version="X")
+    md.document_version = "   "  # whitespace-only -> None
+    assert md.document_version is None
+
+
+# --- Validation on update paths --- #
+
+def test_model_validate_rejects_bad_document_type_again():
+    payload = {"document_type": "bad name!"}
+    with pytest.raises(ValidationError, match="Allowed pattern"):
+        DocumentMetadata.model_validate(payload)

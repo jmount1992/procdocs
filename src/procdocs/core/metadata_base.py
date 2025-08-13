@@ -75,7 +75,8 @@ class BaseMetadata(BaseModel):
             return ext
         normalized: dict[str, Any] = {}
         for k, val in ext.items():
-            if not isinstance(k, str):
+            if not isinstance(k, str):  # pragma: no cover
+                # (unreachable: pydantic validates dict[str,*] keys)
                 raise ValueError(f"Extension keys must be strings, got {type(k).__name__}: {k!r}")
             ks = k.strip()
             if not ks:

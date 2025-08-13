@@ -173,3 +173,123 @@ def test_uid_uses_path_when_set():
 
     assert fd.uid != uid_fallback
     assert fd.uid == expected
+
+
+# --- Defaults injected when spec omitted (major contract) --- #
+
+@pytest.mark.parametrize("raw_type,expected_ft", [
+    ("number", FieldType.NUMBER),
+    ("boolean", FieldType.BOOLEAN),
+    ("ref", FieldType.REF),
+])
+def test_simple_types_inject_default_spec_when_missing(raw_type, expected_ft):
+    fd = FieldDescriptor(fieldname="x", fieldtype=raw_type)
+    assert fd.fieldtype is expected_ft
+    # Spec exists and matches the type (no error raised)
+    assert getattr(fd.spec, "kind", None) == expected_ft.value
+
+
+# --- Mutual exclusion: flat keys vs spec (authoring safety) --- #
+
+def test_flat_and_spec_together_raises():
+    with pytest.raises(ValidationError, match="Provide either flat type-specific keys or 'spec', not both"):
+        FieldDescriptor(
+            fieldname="x",
+            fieldtype="enum",
+            options=["a", "b"],                  # flat
+            spec={"kind": "enum", "options": ["a", "b"]},  # AND spec
+        )
+
+
+# --- 'spec.kind' must match 'fieldtype' --- #
+
+def test_spec_kind_mismatch_raises():
+    with pytest.raises(ValidationError, match=r"'spec\.kind' \(number\) does not match fieldtype 'string'"):
+        # Provide explicit spec dict with wrong kind
+        FieldDescriptor.model_validate({
+            "fieldname": "x",
+            "fieldtype": "string",
+            "spec": {"kind": "number"},
+        })
+
+
+# --- List sugar & synthesized item fieldname --- #
+
+def test_list_sugar_fields_without_item_is_packed_and_dumps_fields():
+    # Author uses 'fields' directly on a list -> should synthesize item=dict(fields=...)
+    fd = FieldDescriptor(
+        fieldname="rows",
+        fieldtype="list",
+        fields=[{"fieldname": "a"}, {"fieldname": "b"}],  # flat sugar
+    )
+    # Internally: item is a dict
+    assert fd.spec.item.fieldtype is FieldType.DICT
+    dumped = fd.model_dump()
+    # Author-friendly dump uses 'fields' only (no 'item')
+    assert "fields" in dumped and "item" not in dumped
+    assert [f["fieldname"] for f in dumped["fields"]] == ["a", "b"]
+
+
+def test_list_item_missing_fieldname_is_synthesized_and_hidden_in_dump():
+    # Provide an item without fieldname; it should be synthesized from parent fieldname
+    fd = FieldDescriptor(
+        fieldname="xs",
+        fieldtype="list",
+        item={"fieldtype": "number"},  # missing fieldname -> synthesize "xs_item"
+    )
+    # Internal synthesized name exists
+    assert fd.spec.item.fieldname == "xs_item"
+    # Dump should not expose the synthesized fieldname in 'item'
+    dumped = fd.model_dump()
+    assert "item" in dumped and "fields" not in dumped
+    assert "fieldname" not in dumped["item"]
+    assert dumped["item"]["fieldtype"] == "number"
+
+
+def test_list_of_string_with_pattern_emits_item_not_fields():
+    fd = FieldDescriptor(
+        fieldname="tags",
+        fieldtype="list",
+        item={"fieldtype": "string", "pattern": r"^[a-z]+$"},
+    )
+    dumped = fd.model_dump()
+    # Because element is scalar string with a pattern, we emit 'item' (without fieldname)
+    assert "item" in dumped and "fields" not in dumped
+    assert dumped["item"]["fieldtype"] == "string"
+    assert dumped["item"]["pattern"] == r"^[a-z]+$"
+    assert "fieldname" not in dumped["item"]
+
+
+# --- Ref knobs round-trip --- #
+
+def test_ref_knobs_roundtrip_in_dump():
+    fd = FieldDescriptor(
+        fieldname="path",
+        fieldtype="ref",
+        cardinality="many",
+        allow_globs=True,
+        must_exist=True,
+        base_dir="/data",
+        extensions=[".yml", ".yaml"],
+    )
+    dumped = fd.model_dump()
+    assert dumped["fieldtype"] == "ref"
+    assert dumped["cardinality"] == "many"
+    assert dumped["allow_globs"] is True
+    assert dumped["must_exist"] is True
+    assert dumped["base_dir"] == "/data"
+    assert dumped["extensions"] == [".yml", ".yaml"]
+
+
+def test_dict_without_spec_raises_requires_spec_block():
+    from pydantic import ValidationError
+    from procdocs.core.schema.field_descriptor import FieldDescriptor
+    with pytest.raises(ValidationError, match=r"dict requires a 'spec' block"):
+        FieldDescriptor(fieldname="cfg", fieldtype="dict")
+
+
+def test_before_validator_short_circuit_on_non_dict_input():
+    from pydantic import ValidationError
+    from procdocs.core.schema.field_descriptor import FieldDescriptor
+    with pytest.raises(ValidationError, match="valid dictionary"):
+        FieldDescriptor.model_validate("not a dict")  # triggers early return path

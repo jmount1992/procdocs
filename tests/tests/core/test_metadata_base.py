@@ -97,3 +97,67 @@ def test_format_version_at_least(fmt, threshold, expected):
 def test_format_version_before(fmt, threshold, expected):
     md = BaseMetadata(format_version=fmt)
     assert md.format_version_before(threshold) is expected
+
+# --- Normalization & happy paths --- #
+
+def test_extensions_trim_keys_and_preserve_values():
+    md = BaseMetadata(format_version="1.2.3", extensions={"  created_by  ": "alice"})
+    # Keys should be trimmed
+    assert set(md.extensions.keys()) == {"created_by"}
+    assert md.extensions["created_by"] == "alice"
+
+
+def test_extensions_empty_dict_passthrough():
+    md = BaseMetadata(format_version="1.2.3", extensions={})
+    assert md.extensions == {}
+
+
+def test_extensions_assignment_duplicate_same_object_ok():
+    md = BaseMetadata(format_version="1.2.3", extensions={"ok": 1})
+    shared = object()
+    md.extensions = {"  k": shared, "k ": shared}
+    assert md.extensions == {"k": shared}
+
+
+# --- Error paths in validator --- #
+
+def test_extensions_reject_non_string_keys():
+    with pytest.raises(ValidationError, match="(Input should be a valid string|string_type)"):
+        BaseMetadata(format_version="1.2.3", extensions={42: "nope"})
+
+
+def test_extensions_reject_empty_key_after_strip():
+    with pytest.raises(ValidationError, match="Extension keys must be non-empty strings"):
+        BaseMetadata(format_version="1.2.3", extensions={"   ": "nope"})
+
+
+def test_extensions_duplicate_after_normalization_different_objects_raises():
+    # Distinct objects to guarantee `is not` identity check is True
+    v1, v2 = [], []
+    with pytest.raises(ValidationError, match="Duplicate extension key after normalization: 'k'"):
+        BaseMetadata(format_version="1.2.3", extensions={"k ": v1, "  k": v2})
+
+
+def test_extensions_type_error_on_none():
+    # Pydantic should reject None for a dict field before validator runs
+    with pytest.raises(ValidationError, match="Input should be a valid dictionary"):
+        BaseMetadata(format_version="1.2.3", extensions=None)  # type: ignore[arg-type]
+
+
+# --- Assignment-time validation (validate_assignment=True) --- #
+
+def test_extensions_assignment_trims_and_validates():
+    md = BaseMetadata(format_version="1.2.3", extensions={"a": 1})
+    md.extensions = {"  b  ": 2}
+    assert md.extensions == {"b": 2}
+
+    # Now try an invalid reassignment (empty key after strip)
+    with pytest.raises(ValidationError, match="Extension keys must be non-empty strings"):
+        md.extensions = {"   ": "bad"}  # triggers validator on assignment
+
+
+def test_extensions_assignment_duplicate_after_normalization_raises():
+    md = BaseMetadata(format_version="1.2.3", extensions={"ok": 1})
+    v1, v2 = object(), object()
+    with pytest.raises(ValidationError, match="Duplicate extension key after normalization: 'k'"):
+        md.extensions = {"k ": v1, "  k": v2}  # same normalized key "k", different objects

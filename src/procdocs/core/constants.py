@@ -48,4 +48,5 @@ def validate_constants():
             f"PROCDOCS_FORMAT_VERSION must be strict semver (x.y.z), got {PROCDOCS_FORMAT_VERSION!r}"
         )
 
+
 validate_constants()

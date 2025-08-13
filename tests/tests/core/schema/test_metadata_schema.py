@@ -84,3 +84,45 @@ def test_invalid_format_version_from_parent_rules():
 def test_valid_format_version_override():
     md = SchemaMetadata(schema_name="test", format_version="1.2.3")
     assert md.format_version == "1.2.3"
+
+
+# --- Round-trip stability --- #
+
+def test_round_trip_dump_and_validate_preserves_normalization():
+    md = SchemaMetadata(
+        schema_name="  Test.Schema-01  ",
+        schema_version="  V1-ALPHA  ",
+        extensions={" owner ": "qa"},
+    )
+    dumped = md.model_dump()
+
+    # Normalized in dump
+    assert dumped["schema_name"] == "test.schema-01"
+    assert dumped["schema_version"] == "V1-ALPHA"
+    assert dumped["extensions"] == {"owner": "qa"}
+
+    # Re-validate from dumped dict (serialize -> load)
+    md2 = SchemaMetadata.model_validate(dumped)
+    assert md2 == md
+
+
+# --- Assignment semantics for schema_version --- #
+
+def test_schema_version_assignment_trims_and_preserves_case():
+    md = SchemaMetadata(schema_name="test")
+    md.schema_version = "  V2-Alpha  "
+    assert md.schema_version == "V2-Alpha"  # trimmed, case preserved
+
+
+def test_schema_version_assignment_blank_becomes_none():
+    md = SchemaMetadata(schema_name="test", schema_version="x")
+    md.schema_version = "   "  # whitespace-only -> None
+    assert md.schema_version is None
+
+
+# --- Validation on update/re-validate path --- #
+
+def test_model_validate_rejects_bad_schema_name():
+    payload = {"schema_name": "bad name!"}
+    with pytest.raises(ValidationError, match="Allowed pattern"):
+        SchemaMetadata.model_validate(payload)
