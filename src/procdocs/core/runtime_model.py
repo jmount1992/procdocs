@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Runtime compilation of a `DocumentSchema` into a Pydantic validator for document contents.
-
-- Build (and cache) a `TypeAdapter` that validates a `contents` dict.
-- Mirror schema constraints: required/optional, patterns, enums, nested dict/list, refs.
+Purpose:
+    Bridges a static ProcDocs DocumentSchema to a runtime-generated Pydantic
+    model/TypeAdapter for validating document contents, with caching keyed
+    by a schema fingerprint.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any, Dict, Iterable, Optional
@@ -32,8 +33,24 @@ _ADAPTER_CACHE: Dict[str, TypeAdapter] = {}
 
 def build_contents_adapter(schema: DocumentSchema) -> TypeAdapter:
     """
-    Build (or fetch cached) a Pydantic `TypeAdapter` that validates the *contents*
-    mapping for the given schema.
+    Build (or fetch from cache) a Pydantic TypeAdapter that validates the
+    `contents` mapping for the given DocumentSchema.
+
+    Behavior:
+        - Compiles a strict model (extra="forbid") mirroring the schema's field types,
+          required/optional flags, string patterns, enum options, nested dict/list shapes,
+          and ref cardinality (str vs list[str]).
+        - Caches adapters by a stable fingerprint of schema name, format version, and structure.
+
+    Args:
+        schema: The loaded DocumentSchema to compile.
+
+    Returns:
+        A TypeAdapter that can validate Python dicts (or JSON) representing document contents.
+
+    Example:
+        adapter = build_contents_adapter(schema)
+        contents = adapter.validate_python(doc["contents"])  # raises ValidationError if invalid
     """
     key = _schema_fingerprint(schema)
     if key in _ADAPTER_CACHE:

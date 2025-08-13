@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Formatting helpers for ProcDocs.
-
-- Stable, minimal one-line formatting for Pydantic v2 `ValidationError`.
+Purpose:
+    Provides formatting helpers for ProcDocs, including stable, minimal,
+    one-line messages for Pydantic ValidationError instances.
 """
 from __future__ import annotations
 

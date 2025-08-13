@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-SchemaRegistry: discover, deduplicate, and serve ProcDocs JSON document schemas.
+Purpose:
+    Implements the SchemaRegistry for ProcDocs, which discovers, loads,
+    deduplicates, and caches JSON document schemas from given roots,
+    providing query access to them.
 """
 from __future__ import annotations
 

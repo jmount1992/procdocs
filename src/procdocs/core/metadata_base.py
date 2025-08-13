@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 """
-ProcDocs core metadata primitives.
-
-This module defines :class:`BaseMetadata`, the root Pydantic model for all
-ProcDocs metadata blocks. It enforces a strict semantic version for the
-``format_version`` (library compatibility) and provides a free-form
-``extensions`` bag for user-defined keys, with light validation to avoid
-common mistakes (non-string or empty keys).
+Purpose:
+    Defines the base metadata model for ProcDocs.
 """
 
 from typing import Any

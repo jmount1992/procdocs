@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Reusable Annotated types and normalization helpers for ProcDocs models.
+Purpose:
+    Provides reusable annotated types and normalization helpers for ProcDocs'
+    Pydantic models such as schema names, and free-form version strings.
 """
 
 from typing import Any, Annotated, Optional

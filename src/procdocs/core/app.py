@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Application-wide context accessor (singleton-ish).
-
-Use `get_context()` to obtain a loaded `AppContext`. You can force a reload or
-override config/roots per call.
+Purpose:
+    Provides a module-level accessor for the ProcDocs AppContext, with optional
+    reload and overrides for configuration, schema roots, and template roots.
 """
 from typing import Optional, Dict, Any, Iterable
 from pathlib import Path

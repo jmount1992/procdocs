@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Pydantic spec models for schema field types.
-
-These per-type specs are consumed by FieldDescriptor to describe nested structure
-(e.g., dict fields) and constraints (e.g., enum options).
+Purpose:
+    Defines Pydantic specification models for each supported ProcDocs field
+    type, including nested structure and constraint details, for use in schema
+    validation.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Literal, Optional, Union, List

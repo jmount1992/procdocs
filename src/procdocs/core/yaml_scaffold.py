@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Generate a starter YAML document from a `DocumentSchema`.
-
-- `render_yaml_template(schema)` returns a YAML string.
-- `write_yaml_template(schema, path)` writes it to disk.
+Purpose:
+    Generates YAML scaffold templates from a DocumentSchema, providing
+    functions to render the template as a string or write it to disk with
+    example placeholders.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

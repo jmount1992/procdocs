@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Pydantic model for document metadata in ProcDocs.
-
-Defines the user-facing metadata required for document instances, built on top of
-`BaseMetadata`.
+Purpose:
+    Defines the metadata model for ProcDocs YAML document instances, extending
+    BaseMetadata with validated document type and an optional free-form version
+    fields.
 """
 
 from pydantic import Field

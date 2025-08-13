@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Utility functions for ProcDocs.
+Purpose:
+    Provides common utility functions such as validation, semantic
+    version handling, dictionary merge, and file I/O utilities for ProcDocs.
 """
 
 import json

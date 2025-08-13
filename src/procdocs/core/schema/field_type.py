@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Allowed field types for ProcDocs JSON document schemas.
-
-This module defines the `FieldType` enum used by schema validators and generators.
-It also includes small coercion/introspection helpers to map from arbitrary inputs
-or Python types to `FieldType` values.
+Purpose:
+    Defines the FieldType enumeration for ProcDocs JSON document schemas,
+    along with helpers for parsing, type mapping, and introspection of
+    field types.
 """
+
 from __future__ import annotations
 
 from enum import Enum

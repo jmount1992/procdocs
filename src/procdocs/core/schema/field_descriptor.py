@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-FieldDescriptor: the core Pydantic model describing one schema field.
-
-Authoring flow:
-- Users write flat JSON: common keys plus type-specific keys at the top level.
-- Pre-parse packs those into a typed `spec` based on `fieldtype`.
-- Serialization flattens `spec` back to the top level for clean authoring output.
+Purpose:
+    Implements the FieldDescriptor model for ProcDocs schemas, handling
+    validation, normalization, packing/unpacking of type-specific specs,
+    and flat serialization.
 """
 from __future__ import annotations
 

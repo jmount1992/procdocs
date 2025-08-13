@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Core constants used across ProcDocs.
-
-- Versioning: current ProcDocs format version (schema/document layout compatibility).
-- Reserved identifiers: field names disallowed in schemas/documents to avoid collisions.
-- File handling: supported extensions and default text encoding.
-- Regular expressions: compiled patterns used by validators and normalizers.
+Purpose:
+    Defines core constants, regular expressions, and runtime guards used
+    across ProcDocs for versioning, reserved identifiers, file handling,
+    and schema/document validation.
 """
 
 import re

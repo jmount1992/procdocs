@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-DocumentSchema: ProcDocs JSON meta-schema for a document type.
+Purpose:
+    Defines the DocumentSchema model for ProcDocs, representing the
+    structure of a specific document type.
 """
+
 from __future__ import annotations
 
 import json

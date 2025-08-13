@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """
-Application context wiring for ProcDocs.
-
-Aims to create a cohesive context of:
-- merged configuration
-- loaded schema registry
-- loaded template registry
+Purpose:
+    Wires together the ProcDocs application context by merging configuration,
+    initializing schema and template registries, and optionally preloading.
 """
 from __future__ import annotations
 

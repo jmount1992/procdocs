@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Pydantic model for JSON document-schema metadata in ProcDocs.
-
-Defines the metadata required for schema files, built on top of `BaseMetadata`.
+Purpose:
+    Defines the metadata model for ProcDocs JSON document schemas, extending
+    BaseMetadata with validated schema name and an optional free-form version
+    fields.
 """
 
 from pydantic import Field

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-ProcDocs configuration loader.
+Purpose:
+    Defines and loads ProcDocs configuration with layered precedence
+    (defaults, global, project, and environment overrides) and returns 
+    a merged settings dict.
 """
 
 import os

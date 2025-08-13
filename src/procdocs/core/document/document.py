@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-ProcDocs document model (concrete YAML instance).
-
-- `metadata` is validated by `DocumentMetadata`
-- `contents` is a free-form mapping validated against a `DocumentSchema` at runtime
+Purpose:
+    Represents a concrete ProcDocs YAML document. Validates metadata via
+    DocumentMetadata and validates contents against a DocumentSchema using
+    a runtime adapter.
 """
 from __future__ import annotations
 
