@@ -74,38 +74,49 @@ class Document(BaseModel):
         Returns:
             List of human-readable error messages (empty list = valid).
         """
-        errors: List[str] = []
+        resolved, errors = self._resolve_schema(schema, registry)
+        if errors:
+            self._last_errors = errors
+            return errors
 
-        # Resolve schema
-        if schema is None:
-            if registry is None:
-                self._last_errors = ["No schema provided and no registry available for resolution"]
-                return self._last_errors
-            if not self.metadata or not self.metadata.document_type:
-                self._last_errors = ["metadata.document_type is missing; cannot resolve schema"]
-                return self._last_errors
-            try:
-                schema = registry.require(self.metadata.document_type)
-            except LookupError as e:
-                self._last_errors = [f"Schema resolution failed: {e}"]
-                return self._last_errors
+        assert resolved is not None  # for type-checkers
 
-        # Check the metadata.document_type matches the schema name
-        if self.metadata.document_type != schema.schema_name:
+        errors = []
+        if self.metadata.document_type != resolved.schema_name:
             errors.append(
-                f"metadata.document_type: {self.metadata.document_type!r} does not match schema {schema.schema_name!r}"
+                f"metadata.document_type: {self.metadata.document_type!r} "
+                f"does not match schema {resolved.schema_name!r}"
             )
 
-        # Validate contents shape & types via dynamic adapter
+        errors.extend(self._validate_contents(resolved))
+        self._last_errors = errors
+        return errors
+
+    def _resolve_schema(self, schema: Optional[DocumentSchema], registry: Optional[SchemaRegistry]) -> tuple[Optional[DocumentSchema], list[str]]:
+        """Centralized schema resolution. Returns (schema, errors)."""
+        if schema is not None:
+            return schema, []
+
+        if registry is None:
+            return None, ["No schema provided and no registry available for resolution"]
+
+        doc_type = getattr(self.metadata, "document_type", None)
+        if not doc_type:
+            return None, ["metadata.document_type is missing; cannot resolve schema"]
+
+        try:
+            return registry.require(doc_type), []
+        except LookupError as e:
+            return None, [f"Schema resolution failed: {e}"]
+
+    def _validate_contents(self, schema: DocumentSchema) -> list[str]:
+        """Validate contents via the dynamic adapter. Returns human-friendly errors."""
         adapter = build_contents_adapter(schema)
         try:
             adapter.validate_python(self.contents or {})
+            return []
         except ValidationError as e:
-            errors.extend(format_pydantic_errors_simple(e))
-
-        # Save and return
-        self._last_errors = errors
-        return errors
+            return format_pydantic_errors_simple(e)
 
     # --- Convenience --- #
 
