@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional
 
 from procdocs.core.constants import SUPPORTED_SCHEMA_EXT
 from procdocs.core.schema.document_schema import DocumentSchema
