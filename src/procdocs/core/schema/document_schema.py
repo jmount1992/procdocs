@@ -96,19 +96,39 @@ class DocumentSchema(BaseModel):
         Ensure no duplicate fieldnames among siblings, recursing into dict/list specs.
         """
         names = [fd.fieldname for fd in fds]
-        dup_counts = {n: c for n, c in Counter(names).items() if c > 1}
-        if dup_counts:
-            details = ", ".join(f"{n} ×{c}" for n, c in sorted(dup_counts.items()))
+        details = cls._dup_details(names)
+        if details:
             raise ValueError(f"Duplicate field names at {at_path!r}: {details}")
 
         for fd in fds:
-            if fd.fieldtype == FieldType.DICT:
-                spec: DictSpec = fd.spec  # type: ignore[assignment]
-                cls._check_no_duplicates(spec.fields, f"{at_path}.{fd.fieldname}")
-            elif fd.fieldtype == FieldType.LIST:
-                spec: ListSpec = fd.spec  # type: ignore[assignment]
-                # The item itself may be a dict/list; treat it as a child list in the path.
-                cls._check_no_duplicates([spec.item], f"{at_path}.{fd.fieldname}[]")
+            children = cls._child_descriptors(fd)
+            if not children:
+                continue
+            cls._check_no_duplicates(children, cls._next_path(at_path, fd))
+
+    @staticmethod
+    def _dup_details(names: Iterable[str]) -> str | None:
+        counts = Counter(names)
+        dups = [(n, c) for n, c in sorted(counts.items()) if c > 1]
+        if not dups:
+            return None
+        return ", ".join(f"{n} ×{c}" for n, c in dups)
+
+    @staticmethod
+    def _child_descriptors(fd: FieldDescriptor) -> List[FieldDescriptor]:
+        if fd.fieldtype == FieldType.DICT:
+            spec: DictSpec = fd.spec  # type: ignore[assignment]
+            return list(spec.fields)
+        if fd.fieldtype == FieldType.LIST:
+            spec: ListSpec = fd.spec  # type: ignore[assignment]
+            return [spec.item]
+        return []
+
+    @staticmethod
+    def _next_path(at_path: str, fd: FieldDescriptor) -> str:
+        if fd.fieldtype == FieldType.LIST:
+            return f"{at_path}.{fd.fieldname}[]"
+        return f"{at_path}.{fd.fieldname}"
 
     # --- File IO --- #
 

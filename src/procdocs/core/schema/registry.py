@@ -53,78 +53,24 @@ class SchemaRegistry:
     def load(self, *, clear: bool = True) -> None:
         """
         Scan roots for schema files, parse, and apply duplicate resolution.
+        Newest mtime wins among duplicates; losers are recorded as invalid.
 
         Args:
             clear: if True, clears prior state before loading.
         """
         if clear:
-            self._schemas.clear()
-            self._entries.clear()
-            self._valid_entries_by_name.clear()
+            self._clear_state()
 
-        # Collect valid parse candidates per canonical name for duplicate resolution
-        candidates: Dict[str, List[Tuple[Path, DocumentSchema, Optional[str]]]] = {}
+        candidates: dict[str, list[tuple[Path, DocumentSchema, Optional[str]]]] = {}
 
-        for root in self._roots:
-            if not root.exists():
+        for p in self._iter_schema_files():
+            schema, err = self._parse_schema_file(p)
+            if err:
+                self._record_invalid_entry(p, err)
                 continue
+            self._add_candidate(candidates, schema, p)
 
-            # Find all supported schema files under this root
-            for p in root.rglob("*"):
-                if not p.is_file() or p.suffix.lower() not in SUPPORTED_SCHEMA_EXT:
-                    continue
-
-                try:
-                    schema = DocumentSchema.from_file(p)
-                    name = schema.schema_name.strip().lower()
-                    # BUGFIX: version lives under metadata
-                    version = schema.metadata.schema_version
-                    candidates.setdefault(name, []).append((p.resolve(), schema, version))
-                except Exception as e:
-                    # Could not parse -> invalid entry recorded with filename stem as name
-                    self._entries.append(
-                        SchemaEntry(
-                            name=p.stem.lower(),
-                            path=p.resolve(),
-                            valid=False,
-                            reason=str(e),
-                            version=None,
-                        )
-                    )
-
-        # Resolve duplicates: newest mtime wins; losers recorded as invalid
-        for name, items in candidates.items():
-            # sort newest first by (mtime, path for stability)
-            items.sort(key=lambda t: (t[0].stat().st_mtime, str(t[0])), reverse=True)
-            winner_path, winner_schema, winner_version = items[0]
-
-            # Record winner
-            self._schemas[name] = winner_schema
-            winner_entry = SchemaEntry(
-                name=name,
-                path=winner_path,
-                valid=True,
-                reason="kept",
-                version=winner_version,
-            )
-            self._valid_entries_by_name[name] = winner_entry
-            self._entries.append(winner_entry)
-
-            # Warm adapter cache
-            build_contents_adapter(winner_schema)
-
-            # Record losers
-            for loser_path, _loser_schema, _loser_version in items[1:]:
-                self._entries.append(
-                    SchemaEntry(
-                        name=name,
-                        path=loser_path,
-                        valid=False,
-                        reason="duplicate-dropped",
-                        version=winner_version,
-                    )
-                )
-
+        self._resolve_duplicates(candidates)
         self._loaded = True
 
     # --- Query API --- #
@@ -169,3 +115,81 @@ class SchemaRegistry:
     def roots(self) -> List[Path]:
         """Roots scanned by this registry."""
         return list(self._roots)
+
+    # --- Loading Helpers --- #
+    def _clear_state(self) -> None:
+        self._schemas.clear()
+        self._entries.clear()
+        self._valid_entries_by_name.clear()
+
+    def _iter_schema_files(self):
+        for root in self._roots:
+            if not root.exists():
+                continue
+            # Avoid filtering twice; check suffix once here
+            for p in root.rglob("*"):
+                if p.is_file() and p.suffix.lower() in SUPPORTED_SCHEMA_EXT:
+                    yield p
+
+    def _parse_schema_file(self, path: Path) -> tuple[DocumentSchema | None, str | None]:
+        try:
+            s = DocumentSchema.from_file(path)
+            # BUGFIX: version lives under metadata
+            ver = getattr(getattr(s, "metadata", None), "schema_version", None)
+            # Stash version on the schema for later, or just return it via entries
+            s.__dict__.setdefault("_registry_version", ver)  # harmless, optional
+            return s, None
+        except Exception as e:
+            return None, str(e)
+
+    def _record_invalid_entry(self, path: Path, reason: str) -> None:
+        self._entries.append(
+            SchemaEntry(
+                name=path.stem.lower(),
+                path=path.resolve(),
+                valid=False,
+                reason=reason,
+                version=None,
+            )
+        )
+
+    def _add_candidate(
+        self,
+        candidates: dict[str, list[tuple[Path, DocumentSchema, Optional[str]]]],
+        schema: DocumentSchema,
+        path: Path,
+    ) -> None:
+        name = schema.schema_name.strip().lower()
+        version = getattr(schema, "_registry_version", None)
+        candidates.setdefault(name, []).append((path.resolve(), schema, version))
+
+    def _select_winner(self, items: list[tuple[Path, DocumentSchema, Optional[str]]]):
+        # newest mtime wins; tie-break by path for stability
+        items.sort(key=lambda t: (t[0].stat().st_mtime, str(t[0])), reverse=True)
+        return items[0], items[1:]
+
+    def _record_winner(self, name: str, path: Path, schema: DocumentSchema, version: Optional[str]) -> None:
+        self._schemas[name] = schema
+        entry = SchemaEntry(name=name, path=path, valid=True, reason="kept", version=version)
+        self._valid_entries_by_name[name] = entry
+        self._entries.append(entry)
+        # Warm adapter cache
+        build_contents_adapter(schema)
+
+    def _record_losers(self, name: str, losers: list[tuple[Path, DocumentSchema, Optional[str]]], version: Optional[str]) -> None:
+        for loser_path, _ls, _ver in losers:
+            self._entries.append(
+                SchemaEntry(
+                    name=name,
+                    path=loser_path,
+                    valid=False,
+                    reason="duplicate-dropped",
+                    version=version,
+                )
+            )
+
+    def _resolve_duplicates(self, candidates: dict[str, list[tuple[Path, DocumentSchema, Optional[str]]]]) -> None:
+        for name, items in candidates.items():
+            (win_path, win_schema, win_ver), losers = self._select_winner(items)
+            self._record_winner(name, win_path, win_schema, win_ver)
+            self._record_losers(name, losers, win_ver)

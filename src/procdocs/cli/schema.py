@@ -58,26 +58,19 @@ def list_schemas(args, ctx: AppContext) -> int:
 def validate_schema(args, ctx: AppContext) -> int:
     target = args.schema
 
-    # Try by schema name via registry (valids only)
-    try:
-        ctx.schemas.require(target)
-        path_hint = next((e.path for e in ctx.schemas.valid_entries() if e.name == target), None)
-        suffix = f"  ({path_hint})" if path_hint else ""
-        print(f"Schema '{target}' is VALID{suffix}")
+    ok, suffix = _registry_status(target, ctx)
+    if ok:
+        print(f"Schema '{target}' is VALID{suffix or ''}")
         return 0
-    except Exception:
-        print(f"Could not find Schema '{target}' in registery. Attempting to find via path.")
+    else:
+        print(f"Could not find Schema '{target}' in registry. Attempting to find via path.")
 
-    # Try as a direct file path (covers invalid/unregistered files)
     p = Path(target)
     if p.exists():
         return _validate_schema_file(p)
 
-    # Fallback: look up an invalid entry recorded by the registry (by name or stem)
-    matches = [e for e in ctx.schemas.invalid_entries() if e.name == target or e.path.stem == target]
-    if matches:
-        e = matches[0]
-        # Re-parse now to recover structured errors (file may have changed since scan)
+    e = _find_invalid_match(ctx, target)
+    if e:
         try:
             _ = DocumentSchema.from_file(e.path)  # If it succeeds, file is now valid
             print(f"Schema '{target}' is now VALID  ({e.path})")
@@ -198,3 +191,22 @@ def _print_entries_json(entries) -> int:
     } for e in entries]
     print(json.dumps(payload, indent=2))
     return 0 if payload else 1
+
+
+def _registry_status(target: str, ctx: AppContext) -> tuple[bool, str | None]:
+    """Return (found_in_registry, suffix_with_path_hint)."""
+    try:
+        ctx.schemas.require(target)
+        path_hint = next((e.path for e in ctx.schemas.valid_entries() if e.name == target), None)
+        suffix = f"  ({path_hint})" if path_hint else None
+        return True, suffix
+    except Exception:
+        return False, None
+
+
+def _find_invalid_match(ctx: AppContext, target: str):
+    """Return the first invalid entry matching by name or filename stem, or None."""
+    for e in ctx.schemas.invalid_entries():
+        if e.name == target or e.path.stem == target:
+            return e
+    return None

@@ -96,27 +96,27 @@ class FieldDescriptor(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        ft = _fd_parse_fieldtype(data.get("fieldtype"))
-        spec_model, allowed_keys = _fd_spec_model_and_keys(ft)
+        ft = cls._fd_parse_fieldtype(data.get("fieldtype"))
+        spec_model, allowed_keys = cls._fd_spec_model_and_keys(ft)
         if not spec_model:
             return data  # unknown type handled later
 
-        flat = _fd_present_flat(data, allowed_keys)
+        flat = cls._fd_present_flat(data, allowed_keys)
         has_flat = bool(flat)
-        has_spec = _fd_has_spec_dict(data)
-        _fd_raise_if_mixed_spec(has_flat, has_spec)
-        _fd_raise_if_stray_keys(data, ft, allowed_keys)
+        has_spec = cls._fd_has_spec_dict(data)
+        cls._fd_raise_if_mixed_spec(has_flat, has_spec)
+        cls._fd_raise_if_stray_keys(data, ft, allowed_keys)
 
         if has_flat and not has_spec:
             parent = data.get("fieldname")
-            flat = _fd_synthesize_list_sugar(ft, flat, parent)
-            flat = _fd_ensure_item_fieldname(ft, flat, parent)
+            flat = cls._fd_synthesize_list_sugar(ft, flat, parent)
+            flat = cls._fd_ensure_item_fieldname(ft, flat, parent)
             synth = {"kind": ft.value, **flat}
-            data = _fd_strip_flat_keys(data, allowed_keys)
+            data = cls._fd_strip_flat_keys(data, allowed_keys)
             data["spec"] = synth
 
         if not has_flat and not has_spec and ft == FieldType.LIST:
-            data["spec"] = _fd_default_list_spec(data.get("fieldname"))
+            data["spec"] = cls._fd_default_list_spec(data.get("fieldname"))
 
         return data
 
@@ -195,6 +195,77 @@ class FieldDescriptor(BaseModel):
 
         return {**base, **flat_spec}
 
+    # --- Pack Flat Spec Helpers --- #
+    @staticmethod
+    def _fd_parse_fieldtype(raw_ft) -> FieldType:
+        return FieldType.parse(raw_ft) if raw_ft is not None else FieldType.STRING
+
+    @staticmethod
+    def _fd_spec_model_and_keys(ft: FieldType):
+        return SPEC_REGISTRY.get(ft, (None, set()))
+
+    @staticmethod
+    def _fd_present_flat(data: dict, allowed_keys: set[str]) -> dict:
+        return {k: v for k, v in data.items() if k in allowed_keys}
+
+    @staticmethod
+    def _fd_has_spec_dict(data: dict) -> bool:
+        return isinstance(data.get("spec"), dict)
+
+    @staticmethod
+    def _fd_raise_if_mixed_spec(has_flat: bool, has_spec: bool) -> None:
+        if has_flat and has_spec:
+            raise ValueError("Provide either flat type-specific keys or 'spec', not both")
+
+    @staticmethod
+    def _fd_raise_if_stray_keys(data: dict, ft: FieldType, allowed_keys: set[str]) -> None:
+        stray = {k for k in data.keys() if k not in (_fd_common_keys() | allowed_keys)}
+        if not stray:
+            return
+        suspicious = stray & _fd_other_type_keys(ft)
+        if suspicious:
+            allowed_fmt = "[" + ", ".join(repr(k) for k in sorted(allowed_keys)) + "]"
+            raise ValueError(
+                f"Unexpected key(s) for fieldtype {ft.value!r}: {sorted(suspicious)}. "
+                f"Allowed: {allowed_fmt}"
+            )
+
+    @staticmethod
+    def _fd_synthesize_list_sugar(ft: FieldType, flat: dict, parent_name: str | None) -> dict:
+        """Support authoring sugar 'fields' instead of 'item' for list-of-dicts."""
+        if ft != FieldType.LIST or "fields" not in flat or "item" in flat:
+            return flat
+        item_fd = {
+            "fieldname": f"{(parent_name or 'item')}_item",
+            "fieldtype": "dict",
+            "fields": flat["fields"],
+        }
+        return {"item": item_fd}
+
+    @staticmethod
+    def _fd_ensure_item_fieldname(ft: FieldType, flat: dict, parent_name: str | None) -> dict:
+        """Ensure list item dict has a fieldname (synthesized if missing)."""
+        if ft != FieldType.LIST or "item" not in flat:
+            return flat
+        it = flat["item"]
+        if isinstance(it, dict) and "fieldname" not in it:
+            flat = {**flat, "item": {**it, "fieldname": f"{(parent_name or 'item')}_item"}}
+        return flat
+
+    @staticmethod
+    def _fd_strip_flat_keys(data: dict, allowed_keys: set[str]) -> dict:
+        return {k: v for k, v in data.items() if k not in allowed_keys}
+
+    @staticmethod
+    def _fd_default_list_spec(parent_name: str | None) -> dict:
+        return {
+            "kind": "list",
+            "item": {
+                "fieldname": f"{(parent_name or 'item')}_item",
+                "fieldtype": "string",
+            },
+        }
+
     # --- Dump Flat Helpers --- #
     def _dump_base(self) -> Dict[str, Any]:
         return {
@@ -263,23 +334,6 @@ class FieldDescriptor(BaseModel):
             raise ValueError("ENUM 'options' contain duplicates")
 
 
-# --- Internal Helpers --- #
-def _fd_parse_fieldtype(raw_ft) -> FieldType:
-    return FieldType.parse(raw_ft) if raw_ft is not None else FieldType.STRING
-
-
-def _fd_spec_model_and_keys(ft: FieldType):
-    return SPEC_REGISTRY.get(ft, (None, set()))
-
-
-def _fd_present_flat(data: dict, allowed_keys: set[str]) -> dict:
-    return {k: v for k, v in data.items() if k in allowed_keys}
-
-
-def _fd_has_spec_dict(data: dict) -> bool:
-    return isinstance(data.get("spec"), dict)
-
-
 def _fd_common_keys() -> set[str]:
     return {"fieldname", "fieldtype", "required", "description", "default", "spec"}
 
@@ -290,60 +344,6 @@ def _fd_other_type_keys(this_ft: FieldType) -> set[str]:
         if t != this_ft:
             keys |= ks
     return keys
-
-
-def _fd_raise_if_mixed_spec(has_flat: bool, has_spec: bool) -> None:
-    if has_flat and has_spec:
-        raise ValueError("Provide either flat type-specific keys or 'spec', not both")
-
-
-def _fd_raise_if_stray_keys(data: dict, ft: FieldType, allowed_keys: set[str]) -> None:
-    stray = {k for k in data.keys() if k not in (_fd_common_keys() | allowed_keys)}
-    if not stray:
-        return
-    suspicious = stray & _fd_other_type_keys(ft)
-    if suspicious:
-        allowed_fmt = "[" + ", ".join(repr(k) for k in sorted(allowed_keys)) + "]"
-        raise ValueError(
-            f"Unexpected key(s) for fieldtype {ft.value!r}: {sorted(suspicious)}. "
-            f"Allowed: {allowed_fmt}"
-        )
-
-
-def _fd_synthesize_list_sugar(ft: FieldType, flat: dict, parent_name: str | None) -> dict:
-    """Support authoring sugar 'fields' instead of 'item' for list-of-dicts."""
-    if ft != FieldType.LIST or "fields" not in flat or "item" in flat:
-        return flat
-    item_fd = {
-        "fieldname": f"{(parent_name or 'item')}_item",
-        "fieldtype": "dict",
-        "fields": flat["fields"],
-    }
-    return {"item": item_fd}
-
-
-def _fd_ensure_item_fieldname(ft: FieldType, flat: dict, parent_name: str | None) -> dict:
-    """Ensure list item dict has a fieldname (synthesized if missing)."""
-    if ft != FieldType.LIST or "item" not in flat:
-        return flat
-    it = flat["item"]
-    if isinstance(it, dict) and "fieldname" not in it:
-        flat = {**flat, "item": {**it, "fieldname": f"{(parent_name or 'item')}_item"}}
-    return flat
-
-
-def _fd_strip_flat_keys(data: dict, allowed_keys: set[str]) -> dict:
-    return {k: v for k, v in data.items() if k not in allowed_keys}
-
-
-def _fd_default_list_spec(parent_name: str | None) -> dict:
-    return {
-        "kind": "list",
-        "item": {
-            "fieldname": f"{(parent_name or 'item')}_item",
-            "fieldtype": "string",
-        },
-    }
 
 
 # --- Forward-Ref Resolution --- #

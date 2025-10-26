@@ -124,50 +124,59 @@ def _model_for_fields(fields: list[FieldDescriptor], model_name: str) -> type[_S
     return create_model(model_name, __base__=_StrictModel, **field_defs)  # type: ignore[return-value]
 
 
+def _py_type_string(fd: FieldDescriptor):
+    pat = _string_pattern(fd)
+    if pat:
+        return Annotated[str, StringConstraints(pattern=pat)]  # type: ignore[name-defined]  # pyright: ignore[reportUndefinedVariable]
+    return str
+
+
+def _py_type_number(_fd: FieldDescriptor):
+    # Accept float (ints coerce to float automatically)
+    return float
+
+
+def _py_type_boolean(_fd: FieldDescriptor):
+    return bool
+
+
+def _py_type_enum(fd: FieldDescriptor):
+    opts = _enum_options(fd)
+    from typing import Literal  # local import to avoid polluting module namespace
+    return Literal[tuple(opts)]  # type: ignore[misc,valid-type]
+
+
+def _py_type_dict(fd: FieldDescriptor):
+    sub = _model_for_fields(_dict_fields(fd), model_name=f"{fd.fieldname.title()}Obj")
+    return sub
+
+
+def _py_type_list(fd: FieldDescriptor):
+    item_fd = _list_item(fd)
+    elem_type = _py_type_for(item_fd)  # recursive
+    return list[elem_type]  # type: ignore[valid-type]
+
+
+def _py_type_ref(fd: FieldDescriptor):
+    spec = _ref_spec(fd)
+    return (str if spec.cardinality == "one" else list[str])
+
+
 def _py_type_for(fd: FieldDescriptor) -> type | object:
     """
     Map a FieldDescriptor to a typing object (or generated Pydantic model)
     describing the expected value shape for contents validation.
     """
-    ft = fd.fieldtype
-
-    if ft == FieldType.STRING:
-        pat = _string_pattern(fd)
-        if pat:
-            return Annotated[str, StringConstraints(pattern=pat)]  # type: ignore[name-defined]  # pyright: ignore[reportUndefinedVariable]
-        return str
-
-    if ft == FieldType.NUMBER:
-        # Accept float (ints coerce to float automatically)
-        return float
-
-    if ft == FieldType.BOOLEAN:
-        return bool
-
-    if ft == FieldType.ENUM:
-        opts = _enum_options(fd)
-        # Note: relying on Literal[(...)] shape as accepted by Pydantic's TypeAdapter.
-        # This intentionally constructs a Literal with the tuple of allowed choices.
-        from typing import Literal  # local import to avoid polluting module namespace
-        return Literal[tuple(opts)]  # type: ignore[misc,valid-type]
-
-    if ft == FieldType.DICT:
-        sub = _model_for_fields(_dict_fields(fd), model_name=f"{fd.fieldname.title()}Obj")
-        return sub
-
-    if ft == FieldType.LIST:
-        item_fd = _list_item(fd)
-        elem_type = _py_type_for(item_fd)
-        return list[elem_type]  # type: ignore[valid-type]
-
-    if ft == FieldType.REF:
-        # Treat as str or list[str] based on cardinality; path existence/globs are
-        # enforced in higher layers (resolver/validator), not here.
-        spec = _ref_spec(fd)
-        return (str if spec.cardinality == "one" else list[str])
-
-    # Fallback (should not occur with prior schema validation)
-    return Any
+    handlers = {
+        FieldType.STRING: _py_type_string,
+        FieldType.NUMBER: _py_type_number,
+        FieldType.BOOLEAN: _py_type_boolean,
+        FieldType.ENUM: _py_type_enum,
+        FieldType.DICT: _py_type_dict,
+        FieldType.LIST: _py_type_list,
+        FieldType.REF: _py_type_ref,
+    }
+    return handlers.get(fd.fieldtype, lambda _fd: Any)(fd)
 
 
 # --- Spec Accessors --- #

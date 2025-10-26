@@ -15,16 +15,32 @@ from procdocs.core.schema.registry import SchemaRegistry
 SUPPORTED_EXTENSIONS = {".yml", ".yaml"}
 
 
-def find_all_files(paths: Iterable[str | Path], recursive: bool = False) -> List[Path]:
-    files: List[Path] = []
+def _is_supported_yaml_file(p: Path) -> bool:
+    return p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
+
+
+def _yaml_files_in_dir(root: Path, recursive: bool) -> list[Path]:
+    if not root.is_dir():
+        return []
+    if recursive:
+        # search each extension explicitly; pathlib has no brace expansion
+        files = []
+        for ext in SUPPORTED_EXTENSIONS:
+            files.extend(root.rglob(f"*{ext}"))
+        return [p for p in files if p.is_file()]
+    # non-recursive
+    return [p for p in root.glob("*") if _is_supported_yaml_file(p)]
+
+
+def find_all_files(paths: Iterable[str | Path], recursive: bool = False) -> list[Path]:
+    files: list[Path] = []
     for raw in paths:
         p = Path(raw)
-        if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS:
+        if _is_supported_yaml_file(p):
             files.append(p)
-        elif p.is_dir():
-            it = p.rglob("*") if recursive else p.glob("*")
-            files.extend(q for q in it if q.is_file() and q.suffix.lower() in SUPPORTED_EXTENSIONS)
-    # stable order for output
+        else:
+            files.extend(_yaml_files_in_dir(p, recursive))
+    # stable, de-duplicated order
     return sorted(set(files))
 
 
@@ -45,25 +61,17 @@ def validate_document(file_path: Path, registry: SchemaRegistry) -> Tuple[bool, 
     """
     Returns: (is_valid, summary_message, error_list)
     """
-    # Quick YAML load for UX-friendly early errors
-    try:
-        raw = yaml.safe_load(file_path.read_text(encoding=DEFAULT_TEXT_ENCODING)) or {}
-    except Exception as e:
-        return False, f"{file_path}: Failed to read YAML ({e})", []
+    ok, msg, errs = _quick_yaml_checks(file_path)
+    if not ok:
+        return False, msg, errs
 
-    md = (raw or {}).get("metadata", {})
-    doc_type = (md or {}).get("document_type")
-    if not doc_type:
-        return False, f"{file_path}: Missing metadata.document_type", []
-
-    # Full parse + validation
+    # Full parse + structure validation
     try:
         doc = Document.from_file(file_path)
     except ValidationError as e:
-        msgs = [f"{'.'.join(map(str, err.get('loc', ()))) or '<root>'}: {err.get('msg','Validation error')}"
-                for err in e.errors()]
-        return False, f"{file_path}: Invalid document structure", msgs
+        return False, f"{file_path}: Invalid document structure", _pydantic_errors(e)
 
+    # Schema validation
     errors = doc.validate(registry=registry)
     if errors:
         return False, f"{file_path}: Validation Failed", errors
@@ -106,3 +114,24 @@ def register(subparser):
         help="Override schema roots just for this run (can be used multiple times).",
     )
     parser.set_defaults(func=validate)
+
+
+def _quick_yaml_checks(file_path: Path) -> Tuple[bool, str, List[str]]:
+    """Fast YAML load and presence of metadata.document_type."""
+    try:
+        raw = yaml.safe_load(file_path.read_text(encoding=DEFAULT_TEXT_ENCODING)) or {}
+    except Exception as e:
+        return False, f"{file_path}: Failed to read YAML ({e})", []
+    md = (raw or {}).get("metadata", {})
+    doc_type = (md or {}).get("document_type")
+    if not doc_type:
+        return False, f"{file_path}: Missing metadata.document_type", []
+    return True, "", []
+
+
+def _pydantic_errors(e: ValidationError) -> List[str]:
+    """Flatten pydantic errors to 'path: message' strings (keeps existing behavior)."""
+    return [
+        f"{'.'.join(map(str, err.get('loc', ()))) or '<root>'}: {err.get('msg', 'Validation error')}"
+        for err in e.errors()
+    ]
