@@ -1,0 +1,92 @@
+{
+    "metadata": {
+        "schema_name": "test",
+        "schema_version": "0.1",
+        "format_version": "0.0.0"
+    },
+
+    "structure": [
+        {
+            "fieldname": "id",
+            "pattern": "^[A-Z]{2,4}-\\d{3}$"
+        },
+        {
+            "fieldname": "title"
+        },
+        {
+            "fieldname": "description",
+            "required": false
+        },
+        {
+            "fieldname": "group",
+            "required": false,
+            "default": "other"
+        },
+        {
+            "fieldname": "preconditions",
+            "fieldtype": "list",
+            "required": false,
+            "item": {
+                "fieldtype": "dict",
+                "required": false,
+                "fields": [
+                    {
+                        "fieldname": "condition"
+                    },
+                    {
+                        "fieldname": "associated_instruction",
+                        "fieldtype": "dict",
+                        "required": false,
+                        "fields": [
+                            { "fieldname": "filepath" },
+                            { "fieldname": "id" }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "fieldname": "test_steps",
+            "fieldtype": "list",
+            "fields": [
+                { "fieldname": "step_number", "fieldtype": "number" },
+                { "fieldname": "action" },
+                {
+                    "fieldname": "associated_instruction",
+                    "fieldtype": "dict",
+                    "required": false,
+                    "fields": [
+                        { "fieldname": "filepath" },
+                        { "fieldname": "id" }
+                    ]
+                }
+            ]
+        },
+        {
+            "fieldname": "expected_result",
+            "fieldtype": "list",
+            "fields": [
+                { "fieldname": "step_number", "fieldtype": "number" },
+                { "fieldname": "result" },
+                {
+                    "fieldname": "associated_instruction",
+                    "fieldtype": "dict",
+                    "required": false,
+                    "fields": [
+                        { "fieldname": "filepath" },
+                        { "fieldname": "id" }
+                    ]
+                },
+                {
+                    "fieldname": "image",
+                    "fieldtype": "dict",
+                    "required": false,
+                    "fields": [
+                        { "fieldname": "filepath" },
+                        { "fieldname": "caption" }
+                    ]
+                }
+            ]
+        }
+    ]
+}
