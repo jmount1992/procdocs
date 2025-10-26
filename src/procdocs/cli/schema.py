@@ -90,7 +90,7 @@ def validate_schema(args, ctx: AppContext) -> int:
         print(f"Schema '{target}' is VALID{f'  ({path_hint})' if path_hint else ''}")
         return 0
     except Exception:
-        pass
+        print(f"Schema '{target}' is INVALID{f'  ({path_hint})' if path_hint else ''}")
 
     # Try as path (for invalid/unregistered files)
     p = Path(target)

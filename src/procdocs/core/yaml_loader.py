@@ -32,7 +32,7 @@ class IncludeResolver:
 
     def read_yaml(self, path: Path) -> dict:
         with open(self._guard(path), "r", encoding="utf-8") as f:
-            return yaml.load(f, Loader=make_loader(self))
+            return yaml.safe_load(f, Loader=make_loader(self))
 
     def read_many(self, pattern: Path) -> List[dict]:
         matched = sorted(pattern.parent.glob(pattern.name))
@@ -67,4 +67,4 @@ def make_loader(resolver: IncludeResolver):
 def load_yaml_with_includes(path: Path, allowed_roots: Iterable[Path]) -> dict:
     resolver = IncludeResolver(allowed_roots)
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.load(f, Loader=make_loader(resolver))
+        return yaml.safe_load(f, Loader=make_loader(resolver))

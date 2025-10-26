@@ -83,7 +83,7 @@ class TemplateRegistry:
         for name, paths in candidates.items():
             try:
                 paths.sort(key=lambda x: (x.stat().st_mtime, str(x)), reverse=True)
-            except Exception as e:
+            except Exception:
                 # If stat() fails for any path, mark those as invalid
                 for p in paths:
                     try:

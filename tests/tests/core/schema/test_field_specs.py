@@ -67,8 +67,8 @@ def test_list_spec_requires_item_and_accepts_fielddescriptor_payload():
     with pytest.raises(ValidationError):
         ListSpec.model_validate({"kind": "list"})  # missing item
 
-    l = ListSpec(item={"fieldname": "val", "fieldtype": "number"})
-    assert l.item.fieldname == "val"
+    list_spec = ListSpec(item={"fieldname": "val", "fieldtype": "number"})
+    assert list_spec.item.fieldname == "val"
 
 
 # --- RefSpec --- #
