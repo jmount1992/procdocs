@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document Schema Specification &mdash; ProcDocs 0.0.0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Document Specification" href="document_specification.html" />
+    <link rel="prev" title="Getting Started" href="getting_started.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> ProcDocs
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction and Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Document Schema Specification</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#components">Components</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#metadata-fields">Metadata Fields</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#structure-block">Structure Block</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#field-descriptor-attributes">Field Descriptor Attributes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reserved-field-names">Reserved Field Names</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#validation-rules">Validation Rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example">Example</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="document_specification.html">Document Specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/schema.html">MetaSchema Class</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/field_descriptor.html">FieldDescriptor Class</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api/field_type.html">FieldType Class</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">ProcDocs</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a></li>
+      <li class="breadcrumb-item active">Document Schema Specification</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/guides/schema_specification.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="document-schema-specification">
+<h1>Document Schema Specification<a class="headerlink" href="#document-schema-specification" title="Permalink to this heading"></a></h1>
+<div class="toctree-wrapper compound">
+</div>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading"></a></h2>
+<p>A <strong>Document Schema</strong> defines the structure, constraints, and validation rules for a specific type of document in the ProcDocs framework.</p>
+<p>Schemas are written in <strong>JSON</strong> and are used to validate structured YAML documents such as unit tests, composite test plans, and work instruction sections.</p>
+</section>
+<section id="components">
+<h2>Components<a class="headerlink" href="#components" title="Permalink to this heading"></a></h2>
+<p>Each schema consists of:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">metadata</span></code>: Provides identifying information about the schema.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">structure</span></code>: Defines the fields expected in validated documents, using field descriptors.</p></li>
+</ul>
+</section>
+<section id="metadata-fields">
+<h2>Metadata Fields<a class="headerlink" href="#metadata-fields" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">schema_name</span></code> (str):
+A user-defined name for this schema (e.g., <code class="docutils literal notranslate"><span class="pre">test</span></code>, <code class="docutils literal notranslate"><span class="pre">wi_section</span></code>, <code class="docutils literal notranslate"><span class="pre">test_document</span></code>).
+Documents that use this schema must set <cite>document_type</cite> to match this value.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">schema_version</span></code> (str):
+A user-defined version number for the schema itself. Used for tracking and change control.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">format_version</span></code> (str):
+The version of the ProcDocs document schema format this file conforms to (e.g., <code class="docutils literal notranslate"><span class="pre">0.0.1</span></code>).</p></li>
+</ul>
+<p>Additional metadata fields (e.g., <code class="docutils literal notranslate"><span class="pre">author</span></code>, <code class="docutils literal notranslate"><span class="pre">description</span></code>) may be included if needed.</p>
+</section>
+<section id="structure-block">
+<h2>Structure Block<a class="headerlink" href="#structure-block" title="Permalink to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">structure</span></code> block is a list of <strong>field descriptors</strong>, each of which defines a single field that may appear in validated documents.</p>
+<p>Field descriptors may represent:</p>
+<ul class="simple">
+<li><p>Flat fields (e.g., strings, numbers)</p></li>
+<li><p>Nested structures (e.g., lists or dictionaries of subfields)</p></li>
+</ul>
+</section>
+<section id="field-descriptor-attributes">
+<h2>Field Descriptor Attributes<a class="headerlink" href="#field-descriptor-attributes" title="Permalink to this heading"></a></h2>
+<p>Each descriptor in <code class="docutils literal notranslate"><span class="pre">structure</span></code> may contain the following keys:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">fieldname</span></code> (str, <strong>required</strong>):
+The field name as it will appear in the document. Must be unique at the same nesting level.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fieldtype</span></code> (str, optional, defaults to <code class="docutils literal notranslate"><span class="pre">string</span></code>):
+The expected type of this field. Supported values:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">string</span></code> — UTF-8 text</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">number</span></code> — Integer or float</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">boolean</span></code> — True or False</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">enum</span></code> — A string constrained to predefined values</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">list</span></code> — A list of nested subfields</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dict</span></code> — A dictionary with named nested subfields</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">required</span></code> (bool, optional, default: true):
+Whether this field must appear in a document that uses this schema.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">description</span></code> (str, optional):
+A human-readable description of the field.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">default</span></code> (any, optional):
+A default value to be applied if the field is missing and not required.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">options</span></code> (list of str, required if <code class="docutils literal notranslate"><span class="pre">fieldtype</span></code> is <code class="docutils literal notranslate"><span class="pre">enum</span></code>):
+Valid values for enum-type fields.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pattern</span></code> (str, optional):
+Regular expression constraint for string-type fields.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fields</span></code> (list of field descriptors, required for <code class="docutils literal notranslate"><span class="pre">list</span></code> and <code class="docutils literal notranslate"><span class="pre">dict</span></code> types):
+Describes the nested structure of compound types.</p></li>
+</ul>
+</section>
+<section id="reserved-field-names">
+<h2>Reserved Field Names<a class="headerlink" href="#reserved-field-names" title="Permalink to this heading"></a></h2>
+<p>The following field names are reserved and <strong>cannot</strong> be used as <cite>fieldname</cite> values within the schema’s structure:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">metadata</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">structure</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">contents</span></code></p></li>
+</ul>
+</section>
+<section id="validation-rules">
+<h2>Validation Rules<a class="headerlink" href="#validation-rules" title="Permalink to this heading"></a></h2>
+<p>ProcDocs will validate that:</p>
+<ol class="arabic simple">
+<li><p>The top-level schema includes both <code class="docutils literal notranslate"><span class="pre">metadata</span></code> and <code class="docutils literal notranslate"><span class="pre">structure</span></code> blocks.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">metadata</span></code> includes:
+- <code class="docutils literal notranslate"><span class="pre">schema_name</span></code>
+- <code class="docutils literal notranslate"><span class="pre">format_version</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">structure</span></code> is a list of valid field descriptors.</p></li>
+<li><p>Each field descriptor:
+- Has a unique <code class="docutils literal notranslate"><span class="pre">fieldname</span></code> at its level
+- Uses a valid <code class="docutils literal notranslate"><span class="pre">fieldtype</span></code>
+- If <code class="docutils literal notranslate"><span class="pre">fieldtype</span></code> is <code class="docutils literal notranslate"><span class="pre">enum</span></code>, includes a non-empty <code class="docutils literal notranslate"><span class="pre">options</span></code> list
+- If <code class="docutils literal notranslate"><span class="pre">pattern</span></code> is used, it applies only to string fields and is a valid regex
+- If <code class="docutils literal notranslate"><span class="pre">fields</span></code> is used, the <code class="docutils literal notranslate"><span class="pre">fieldtype</span></code> must be <code class="docutils literal notranslate"><span class="pre">list</span></code> or <code class="docutils literal notranslate"><span class="pre">dict</span></code></p></li>
+<li><p>Reserved field names are not used.</p></li>
+</ol>
+</section>
+<section id="example">
+<h2>Example<a class="headerlink" href="#example" title="Permalink to this heading"></a></h2>
+<p>The following schema defines a simple <cite>test</cite> document with two fields: an ID and a list of steps.</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;metadata&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;schema_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;test&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;schema_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.1&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;format_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.0.1&quot;</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;structure&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;fieldname&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;id&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;fieldtype&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;required&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;pattern&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^[A-Z]{3}-\\d{3}$&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;description&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;The test identifier.&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;fieldname&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;steps&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;fieldtype&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;list&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;fields&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;fieldname&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;step-number&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;fieldtype&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;number&quot;</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;fieldname&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;step&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;fieldtype&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;string&quot;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="getting_started.html" class="btn btn-neutral float-left" title="Getting Started" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="document_specification.html" class="btn btn-neutral float-right" title="Document Specification" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, James Mount.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
