@@ -1,14 +1,4 @@
 ---
-engines:
-  pylint:
-    enabled: true
-
-  radon:
-    enabled: true
-    configuration:
-      cyclomatic_complexity:
-        threshold: 10
-
 exclude_paths:
   - ".github/**"
   - "tests/**"
