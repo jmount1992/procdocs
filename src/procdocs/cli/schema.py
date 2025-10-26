@@ -85,7 +85,7 @@ def validate_schema(args, ctx: AppContext) -> int:
 
     # Try by name (valids only)
     try:
-        schema = ctx.schemas.require(target)
+        ctx.schemas.require(target)
         path_hint = next((e.path for e in ctx.schemas.valid_entries() if e.name == target), None)
         print(f"Schema '{target}' is VALID{f'  ({path_hint})' if path_hint else ''}")
         return 0

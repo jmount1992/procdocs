@@ -9,6 +9,7 @@ from procdocs.core.yaml_scaffold import (
     write_yaml_template,
     _render_field,          # internal, used to hit the seen_list_uids=None init
     _string_pattern,        # internal, used to cover non-string path
+    _enum_options,
 )
 
 
@@ -162,9 +163,6 @@ def test__string_pattern_returns_none_for_non_string_field():
 
 
 def test__enum_options_returns_empty_for_non_enum_field():
-    from procdocs.core.schema.field_descriptor import FieldDescriptor
-    from procdocs.core.yaml_scaffold import _enum_options
-
     # Default FieldDescriptor is a STRING (not ENUM), so _enum_options should fall back to []
     fd = FieldDescriptor(fieldname="x")
     assert _enum_options(fd) == []

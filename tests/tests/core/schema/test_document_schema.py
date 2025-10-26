@@ -12,7 +12,7 @@ from procdocs.core.schema.field_descriptor import FieldDescriptor
 # --- Helpers --- #
 
 def _sha10(s: str) -> str:
-    return hashlib.sha1(s.encode(DEFAULT_TEXT_ENCODING)).hexdigest()[:10]
+    return hashlib.sha256(s.encode(DEFAULT_TEXT_ENCODING)).hexdigest()[:10]
 
 
 # --- from_file (JSON-only) --- #
@@ -55,7 +55,7 @@ def test_from_file_json_only_success(tmp_path):
     # list item path uses the [] segment for UID stability
     assert f2.spec.item._path == "items[]/element"    # type: ignore[attr-defined]
 
-    # uid is sha1 of canonical path
+    # uid is sha256 of canonical path
     assert f0.uid == _sha10("id")
     assert f1.spec.fields[0].uid == _sha10("group/child")   # type: ignore[attr-defined]
     assert f2.spec.item.uid == _sha10("items[]/element")    # type: ignore[attr-defined]

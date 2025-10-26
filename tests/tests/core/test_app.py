@@ -1,8 +1,4 @@
-# tests/test_app.py
 #!/usr/bin/env python3
-import pytest
-from pathlib import Path
-
 import procdocs.core.app as app
 
 

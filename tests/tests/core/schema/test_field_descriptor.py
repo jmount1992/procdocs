@@ -169,7 +169,7 @@ def test_uid_uses_path_when_set():
 
     # Simulate DocumentSchema assigning canonical path
     fd._path = "root/section/id"  # PrivateAttr is a normal attribute at runtime
-    expected = hashlib.sha1("root/section/id".encode("utf-8")).hexdigest()[:10]
+    expected = hashlib.sha256("root/section/id".encode("utf-8")).hexdigest()[:10]
 
     assert fd.uid != uid_fallback
     assert fd.uid == expected
@@ -282,14 +282,10 @@ def test_ref_knobs_roundtrip_in_dump():
 
 
 def test_dict_without_spec_raises_requires_spec_block():
-    from pydantic import ValidationError
-    from procdocs.core.schema.field_descriptor import FieldDescriptor
     with pytest.raises(ValidationError, match=r"dict requires a 'spec' block"):
         FieldDescriptor(fieldname="cfg", fieldtype="dict")
 
 
 def test_before_validator_short_circuit_on_non_dict_input():
-    from pydantic import ValidationError
-    from procdocs.core.schema.field_descriptor import FieldDescriptor
     with pytest.raises(ValidationError, match="valid dictionary"):
         FieldDescriptor.model_validate("not a dict")  # triggers early return path

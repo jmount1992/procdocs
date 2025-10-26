@@ -2,8 +2,8 @@
 
 import argparse
 from procdocs.core.app import get_context
-from procdocs.cli import config, schema, templates
-from procdocs.cli.document import generate, validate, render
+from procdocs.cli import config, schema
+from procdocs.cli.document import generate, validate
 
 
 def main():

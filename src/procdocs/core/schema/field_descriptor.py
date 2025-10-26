@@ -167,7 +167,7 @@ class FieldDescriptor(BaseModel):
     def uid(self) -> str:
         """Stable 10-char hash of the descriptor's `_path` (for references/UI)."""
         raw_encode = self._path.encode(C.DEFAULT_TEXT_ENCODING)
-        return hashlib.sha1(raw_encode).hexdigest()[:10]
+        return hashlib.sha256(raw_encode).hexdigest()[:10]
 
     # --- Validators --- #
 

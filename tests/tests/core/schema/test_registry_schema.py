@@ -84,10 +84,11 @@ def test_deduplication_newest_mtime_wins_and_entries_mark_losers(tmp_path: Path,
     os.utime(newer, (t0, t0))
 
     # Also add a completely different schema to ensure normal behavior coexists
-    other = _write_schema(root / "beta.json", "beta", version="b1")
+    _write_schema(root / "beta.json", "beta", version="b1")
 
     # Monkeypatch adapter to verify it's called only for the winner
     calls = []
+
     def fake_build_adapter(schema):
         calls.append(schema.schema_name)
 
@@ -140,7 +141,8 @@ def test_unsupported_extensions_are_ignored(tmp_path: Path):
 def test_get_entry_and_roots_properties(tmp_path: Path):
     root1 = tmp_path / "a"
     root2 = tmp_path / "b"
-    root1.mkdir(); root2.mkdir()
+    root1.mkdir()
+    root2.mkdir()
     _write_schema(root1 / "x.json", "X")
 
     reg = SchemaRegistry([root1, root2])
@@ -170,7 +172,6 @@ def test_clear_false_appends_scan_results(tmp_path: Path):
 
 
 def test_registry_ignores_directories_in_scan(tmp_path):
-    from procdocs.core.schema.registry import SchemaRegistry
     root = tmp_path / "schemas"
     root.mkdir()
     (root / "subdir").mkdir()  # ensure rglob("*") yields a non-file entry
