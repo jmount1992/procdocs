@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from pydantic import ValidationError
+from typing import Optional
 
 from procdocs.core.app_context import AppContext
 from procdocs.core.schema.document_schema import DocumentSchema
@@ -39,105 +40,52 @@ def register(subparsers):
 def list_schemas(args, ctx: AppContext) -> int:
     print("Searched schema_paths:", ", ".join(ctx.config.get("schema_paths", [])) or "<none>")
 
-    # choose set to display
-    if args.invalid:
-        entries = ctx.schemas.invalid_entries()
-    elif args.all:
-        entries = ctx.schemas.entries()
-    else:
-        entries = ctx.schemas.valid_entries()
+    entries = _select_entries(args, ctx)
 
     if args.json:
-        import json
-        payload = [{
-            "name": e.name,
-            "valid": e.valid,
-            "path": str(e.path),
-            "version": e.version,
-            "reason": e.reason,
-        } for e in entries]
-        print(json.dumps(payload, indent=2))
-        return 0 if payload else 1
+        return _print_entries_json(entries)
 
     if not entries:
         print("No schemas found.")
         return 1
 
-    # Pretty listing: sort valids first, then by display name (case-insensitive)
-    def display_name(e):
-        return (e.name or e.path.stem).lower()
-
     print("\nSchemas Found:")
-    for e in sorted(entries, key=lambda x: (not x.valid, display_name(x))):
-        if not e.valid and e.reason:
-            first = e.reason.splitlines()[0]
-            brief = first.split(" for ")[0]
-        status = "✓ valid" if e.valid else f"✗ invalid ({brief})"
-        name = e.name or e.path.stem
-        ver = f" v{e.version}" if e.version else ""
-        line = f"  - {name:24} {status:35}  {e.path}{ver}"
-        print(line)
+    for e in _sorted_entries(entries):
+        print(_format_entry_line(e))
     return 0
 
 
 def validate_schema(args, ctx: AppContext) -> int:
     target = args.schema
 
-    # Try by name (valids only)
+    # Try by schema name via registry (valids only)
     try:
         ctx.schemas.require(target)
         path_hint = next((e.path for e in ctx.schemas.valid_entries() if e.name == target), None)
-        print(f"Schema '{target}' is VALID{f'  ({path_hint})' if path_hint else ''}")
+        suffix = f"  ({path_hint})" if path_hint else ""
+        print(f"Schema '{target}' is VALID{suffix}")
         return 0
     except Exception:
-        print(f"Schema '{target}' is INVALID{f'  ({path_hint})' if path_hint else ''}")
+        print(f"Could not find Schema '{target}' in registery. Attempting to find via path.")
 
-    # Try as path (for invalid/unregistered files)
+    # Try as a direct file path (covers invalid/unregistered files)
     p = Path(target)
     if p.exists():
-        try:
-            _ = DocumentSchema.from_file(p)  # will raise ValidationError if invalid
-            print(f"Schema file is VALID  ({p})")
-            return 0
-        except ValidationError as ve:
-            msgs = format_pydantic_errors_simple(ve)
-            print(f"\nSchema file is INVALID  ({p})")
-            for m in msgs:
-                print(f"  - {m}")
-            print(f"\n({len(msgs)} error{'s' if len(msgs)!=1 else ''})")
-            return 1
-        except Exception as e:
-            # Non-pydantic failure
-            first = str(e).splitlines()[0]
-            print(f"\nSchema file is INVALID  ({p})")
-            print(f"  - {first}")
-            print("\n(1 error)")
-            return 1
+        return _validate_schema_file(p)
 
-    # Fallback: lookup invalid entry recorded by the registry (by name or stem)
-    matches = [e for e in ctx.schemas.invalid_entries()
-               if e.name == target or e.path.stem == target]
+    # Fallback: look up an invalid entry recorded by the registry (by name or stem)
+    matches = [e for e in ctx.schemas.invalid_entries() if e.name == target or e.path.stem == target]
     if matches:
         e = matches[0]
-        # Re-parse now to recover structured errors
+        # Re-parse now to recover structured errors (file may have changed since scan)
         try:
-            _ = DocumentSchema.from_file(e.path)  # expected to raise
-            # If it didn't, treat as valid (edge case where file changed since scan)
+            _ = DocumentSchema.from_file(e.path)  # If it succeeds, file is now valid
             print(f"Schema '{target}' is now VALID  ({e.path})")
             return 0
         except ValidationError as ve:
-            msgs = format_pydantic_errors_simple(ve)
-            print(f"\nSchema '{target}' is INVALID  ({e.path})")
-            for m in msgs:
-                print(f"  - {m}")
-            print(f"\n({len(msgs)} error{'s' if len(msgs)!=1 else ''})")
-            return 1
+            return _report_pydantic_invalid(f"Schema '{target}' is INVALID  ({e.path})", ve)
         except Exception as ex:
-            first = str(ex).splitlines()[0]
-            print(f"\nSchema '{target}' is INVALID  ({e.path})")
-            print(f"  - {first}")
-            print("\n(1 error)")
-            return 1
+            return _report_exception_invalid(f"Schema '{target}' is INVALID  ({e.path})", ex)
 
     print(f"Schema '{target}' not found by name or path.")
     return 1
@@ -178,3 +126,75 @@ def doctor_schema(args, ctx: AppContext) -> int:
         print("No *.json files found under configured roots.")
         return 1
     return 0
+
+
+# --- Internal helpers --- #
+
+def _report_pydantic_invalid(header: str, ve: ValidationError) -> int:
+    msgs = format_pydantic_errors_simple(ve)
+    print(f"\n{header}")
+    for m in msgs:
+        print(f"  - {m}")
+    print(f"\n({len(msgs)} error{'s' if len(msgs) != 1 else ''})")
+    return 1
+
+
+def _report_exception_invalid(header: str, ex: Exception) -> int:
+    first = str(ex).splitlines()[0] if str(ex) else ex.__class__.__name__
+    print(f"\n{header}")
+    print(f"  - {first}")
+    print("\n(1 error)")
+    return 1
+
+
+def _validate_schema_file(path: Path, label: str = "Schema file") -> int:
+    try:
+        _ = DocumentSchema.from_file(path)
+        print(f"{label} is VALID  ({path})")
+        return 0
+    except ValidationError as ve:
+        return _report_pydantic_invalid(f"{label} is INVALID  ({path})", ve)
+    except Exception as ex:
+        return _report_exception_invalid(f"{label} is INVALID  ({path})", ex)
+
+
+def _select_entries(args, ctx: AppContext):
+    if getattr(args, "invalid", False):
+        return ctx.schemas.invalid_entries()
+    if getattr(args, "all", False):
+        return ctx.schemas.entries()
+    return ctx.schemas.valid_entries()
+
+
+def _sorted_entries(entries):
+    def display_name(e):
+        return (e.name or e.path.stem).lower()
+    # valid first (False < True), then by display name
+    return sorted(entries, key=lambda x: (not x.valid, display_name(x)))
+
+
+def _brief_reason(reason: Optional[str]) -> str:
+    if not reason:
+        return "unknown"
+    first = reason.splitlines()[0]
+    return first.split(" for ")[0]
+
+
+def _format_entry_line(e) -> str:
+    status = "✓ valid" if e.valid else f"✗ invalid ({_brief_reason(e.reason)})"
+    name = e.name or e.path.stem
+    ver = f" v{e.version}" if e.version else ""
+    return f"  - {name:24} {status:35}  {e.path}{ver}"
+
+
+def _print_entries_json(entries) -> int:
+    import json
+    payload = [{
+        "name": e.name,
+        "valid": e.valid,
+        "path": str(e.path),
+        "version": e.version,
+        "reason": e.reason,
+    } for e in entries]
+    print(json.dumps(payload, indent=2))
+    return 0 if payload else 1
