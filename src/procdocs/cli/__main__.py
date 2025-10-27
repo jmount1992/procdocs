@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
+
+from procdocs import __version__
 from procdocs.core.app import get_context
 from procdocs.cli import config, schema
 from procdocs.cli.document import generate, validate
@@ -8,6 +10,13 @@ from procdocs.cli.document import generate, validate
 
 def main():
     parser = argparse.ArgumentParser(prog="procdocs", description="ProcDocs CLI Toolkit")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show the installed ProcDocs version and exit",
+    )
+
     # optional global flags you can add later:
     # parser.add_argument("--schema-path", action="append", help="Extra schema roots")
     subparsers = parser.add_subparsers(dest="command")
