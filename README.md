@@ -1,6 +1,10 @@
 # ProcDocs
-[![Python Versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![OS Support](https://img.shields.io/badge/OS-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey?logo=githubactions&logoColor=white)](https://github.com/jmount1992/procdocs/actions/workflows/build_test.yml)
+[![Python Versions](https://img.shields.io/badge/python-3.10_|_3.11_|_3.12-3776AB?logo=python&logoColor=white)]()
+[![OS Support](https://img.shields.io/badge/OS-Linux_|_macOS_|_Windows-555555?logo=githubactions&logoColor=white)]()
+
+[![Version](https://img.shields.io/badge/version-auto--from--git-lightblue?logo=git&logoColor=white)](https://github.com/jmount1992/procdocs/releases)
+[![License](https://img.shields.io/github/license/jmount1992/procdocs?color=blue)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-online-success?logo=readthedocs&logoColor=white)](https://jamesmount.tech/procdocs/)
 
 [![Build and Test](https://github.com/jmount1992/procdocs/actions/workflows/build_and_test.yml/badge.svg)](https://github.com/jmount1992/procdocs/actions/workflows/build_and_test.yml)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/08dcb1871ec341978a7cdbcc0cfbcf83)](https://app.codacy.com/gh/jmount1992/procdocs/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
