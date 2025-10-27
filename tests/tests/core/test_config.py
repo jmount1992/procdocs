@@ -88,7 +88,7 @@ def test_load_config_env_overrides_schema_and_log_level(tmp_path: Path, monkeypa
     paths = result["schema_paths"]
     assert paths[0] == "a"
     assert paths[1] != "~/b" and "b" in Path(paths[1]).parts  # tilde expanded
-    assert paths[2] == "/tmp"
+    assert Path(paths[2]).as_posix() == "/tmp"
     # Logging overridden
     assert result["logging"]["level"] == "ERROR"
 
