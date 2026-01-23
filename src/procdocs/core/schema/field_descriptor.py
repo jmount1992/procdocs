@@ -48,7 +48,7 @@ SPEC_REGISTRY: Dict[FieldType, tuple[Type[BaseModel], set[str]]] = {
     FieldType.ENUM:   (EnumSpec, {"options"}),
     FieldType.DICT:   (DictSpec, {"fields"}),
     FieldType.LIST:   (ListSpec, {"item", "fields"}),
-    FieldType.REF:    (RefSpec, {"cardinality", "allow_globs", "must_exist", "base_dir", "extensions"}),
+    FieldType.REF:    (RefSpec, {"cardinality", "allow_globs", "must_exist", "base_dir", "extensions", "ref_kind", "document_type", "embed_as"}),
 }
 
 

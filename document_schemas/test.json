@@ -38,7 +38,12 @@
                         "fieldtype": "dict",
                         "required": false,
                         "fields": [
-                            { "fieldname": "filepath" },
+                            { 
+                                "fieldname": "filepath",
+                                "fieldtype": "ref",
+                                "must_exist": true,
+                                "extensions": [".yml", ".yaml"]
+                            },
                             { "fieldname": "id" }
                         ]
                     }
@@ -56,7 +61,12 @@
                     "fieldtype": "dict",
                     "required": false,
                     "fields": [
-                        { "fieldname": "filepath" },
+                        { 
+                            "fieldname": "filepath",
+                            "fieldtype": "ref",
+                            "must_exist": true,
+                            "extensions": [".yml", ".yaml"]
+                        },
                         { "fieldname": "id" }
                     ]
                 }
@@ -73,7 +83,12 @@
                     "fieldtype": "dict",
                     "required": false,
                     "fields": [
-                        { "fieldname": "filepath" },
+                        { 
+                            "fieldname": "filepath",
+                            "fieldtype": "ref",
+                            "must_exist": true,
+                            "extensions": [".yml", ".yaml"]
+                        },
                         { "fieldname": "id" }
                     ]
                 },
@@ -82,7 +97,12 @@
                     "fieldtype": "dict",
                     "required": false,
                     "fields": [
-                        { "fieldname": "filepath" },
+                        { 
+                            "fieldname": "filepath",
+                            "fieldtype": "ref",
+                            "must_exist": true,
+                            "extensions": [".png", ".jpg"]
+                        },
                         { "fieldname": "caption" }
                     ]
                 }

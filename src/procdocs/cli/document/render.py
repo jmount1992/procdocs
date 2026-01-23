@@ -1,98 +1,145 @@
 #!/usr/bin/env python3
+"""
+Purpose:
+    Render a ProcDocs YAML document into a .docx using a Jinja2-style Word template
+    (docxtpl). MVP renderer intended for technical users.
 
-# ------------------------------------------------------------------------------
-# PROTOTYPE / LEGACY NOTICE
-#
-# This module is part of the *prototype document render pipeline*.
-# It exists only to support the experimental CLI for rendering documents and
-# will likely be replaced in 0.2.0 when the render architecture is implemented.
-#
-# Until then, treat this file as temporary/legacy code.
-# ------------------------------------------------------------------------------
-
+Notes:
+    - Context always exposes:
+        * metadata: document metadata (dict)
+        * contents: resolved document contents (dict)
+        * doc: alias of contents (dict)
+    - Reference resolution is schema-driven:
+        any FieldType.REF in the schema will be resolved before rendering.
+"""
 from __future__ import annotations
 
+import json
 from pathlib import Path
-
-from pydantic import ValidationError
+from typing import Any, Dict, Optional
 
 from procdocs.core.app_context import AppContext
-from procdocs.core.yaml_loader import load_yaml_with_includes
 from procdocs.core.document.document import Document
-from procdocs.core.render.engine import render_document
-
-# Validation is optional; only used if --schema-root is provided
-try:
-    from procdocs.core.schema.registry import SchemaRegistry  # type: ignore
-except Exception:
-    SchemaRegistry = None  # type: ignore
+from procdocs.core.render.docx_jinja_render import DocxJinjaRenderer, RenderError
+from procdocs.core.render.reference_resolver import ReferenceResolver, ResolveError
 
 
-def main(args, ctx: AppContext) -> int:
+def render(args, ctx: AppContext) -> int:
+    doc_path = Path(args.document).resolve()
+    template_path = Path(args.template).resolve()
+    out_path = Path(args.output).resolve()
+    dump_context_path = Path(args.dump_context).resolve() if args.dump_context else None
+
+    base_dir = Path(args.base_dir).resolve() if args.base_dir else doc_path.parent
+    strict_refs: bool = args.strict_refs
+
+    # --- Load document --- #
     try:
-        doc_path = Path(args.doc_path).resolve()
-        template_path = Path(args.template_path).resolve()
-        output_path = Path(args.output_path).resolve()
+        doc = Document.from_file(doc_path)
+    except Exception as e:
+        print(f"ERROR: failed to load document {str(doc_path)!r}: {e}")
+        return 1
 
-        # 1) Load YAML (+ includes)
-        allowed_roots = [doc_path.parent]
-        if args.includes_root:
-            allowed_roots.append(Path(args.includes_root).resolve())
-        raw = load_yaml_with_includes(doc_path, allowed_roots)
+    # --- Validate document --- #
+    errors = doc.validate(registry=ctx.schemas)
+    if errors:
+        print(f"ERROR: document {doc_path.name!r} is invalid:")
+        for msg in errors:
+            print(f"  - {msg}")
+        return 1
 
-        # 2) Build Document (Pydantic v2)
+    # --- Resolve schema --- #
+    try:
+        schema = ctx.schemas.require(doc.metadata.document_type)
+    except Exception as e:
+        print(f"ERROR: schema resolution failed for document_type {doc.metadata.document_type!r}: {e}")
+        return 1
+
+    # --- Resolve refs (schema-driven) --- #
+    resolver = ReferenceResolver()
+    try:
+        result = resolver.resolve(
+            contents=dict(doc.contents or {}),
+            schema=schema,
+            registry=ctx.schemas,
+            base_dir=base_dir,
+            strict=strict_refs,
+        )
+        resolved_contents = result.contents
+        warnings = result.warnings
+    except ResolveError as e:
+        print(f"ERROR: failed to resolve references in {doc_path.name!r}: {e}")
+        return 1
+
+    # --- Build template context --- #
+    context: Dict[str, Any] = {
+        "metadata": doc.metadata.model_dump(),
+        "contents": resolved_contents,
+        "doc": resolved_contents,
+        "source_path": str(doc_path),
+    }
+    if warnings:
+        context["resolve_warnings"] = warnings
+
+    # Optional: dump context for template iteration
+    if dump_context_path:
         try:
-            doc = Document.model_validate(raw)  # Pydantic v2
-        except ValidationError as ve:
-            print("Validation failed (Pydantic field errors):")
-            for err in ve.errors():
-                loc = ".".join(str(p) for p in err.get("loc", []))
-                print(f"  - {loc}: {err.get('msg')}")
+            dump_context_path.parent.mkdir(parents=True, exist_ok=True)
+            dump_context_path.write_text(
+                json.dumps(context, indent=2, sort_keys=True, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            print(f"Context dumped to {dump_context_path}")
+        except Exception as e:
+            print(f"ERROR: failed to dump context to {str(dump_context_path)!r}: {e}")
             return 1
 
-        # 3) Optional schema validation
-        if args.schema_root:
-            if SchemaRegistry is None:
-                print("Warning: SchemaRegistry not available; skipping validation.")
-            else:
-                registry = SchemaRegistry.from_paths(args.schema_root)
-                result = doc.validate(registry=registry)
-                if hasattr(result, "has_errors") and result.has_errors():
-                    print("Validation failed:")
-                    for e in getattr(result, "errors", []):
-                        print(f"  - {e}")
-                    return 1
-
-        # 4) Delegate to render engine
-        render_document(
-            document=doc,
-            template_path=template_path,
-            output_path=output_path,
-            templates_roots=[template_path.parent],
-            format_hint=args.format,  # may be None → engine will auto-detect by suffix
-            extra_filters=None,       # wire in if/when you have custom filters
-            base_url=template_path.parent,
-            prepend_pdf=None,         # wire these via CLI flags in future if needed
-            append_pdf=None,
-        )
-
-        print(f"Rendered {doc_path.name} → {output_path}")
-        return 0
-
-    except Exception as e:
-        print(f"Error rendering document:\n  {e}")
+    # --- Render --- #
+    renderer = DocxJinjaRenderer()
+    try:
+        renderer.render(template_path=template_path, context=context, out_path=out_path)
+    except RenderError as e:
+        print(f"ERROR: render failed: {e}")
         return 1
+
+    print(f"Rendered: {out_path}")
+    return 0
 
 
 def register(subparser):
     parser = subparser.add_parser(
         "render",
-        help="Render a YAML document with a Jinja2 template to HTML or PDF."
+        help="Render a ProcDocs YAML document to .docx using a Jinja2-style Word template.",
     )
-    parser.add_argument("doc_path", help="Path to the YAML document instance.")
-    parser.add_argument("template_path", help="Path to the Jinja2 HTML template.")
-    parser.add_argument("output_path", help="Output file (.html or .pdf).")
-    parser.add_argument("--includes-root", help="Extra root allowed for !include/!includeglob.")
-    parser.add_argument("--schema-root", nargs="*", help="Optional schema root(s) to validate against.")
-    parser.add_argument("--format", choices=["html", "pdf"], help="Override output format.")
-    parser.set_defaults(func=main)
+    parser.add_argument("document", help="Path to the YAML document to render.")
+    parser.add_argument("template", help="Path to the .docx template (docxtpl/Jinja2).")
+    parser.add_argument("output", help="Path to write the rendered .docx.")
+
+    parser.add_argument(
+        "--base-dir",
+        default=None,
+        help="Base directory for resolving relative ref paths (default: document's folder).",
+    )
+    parser.add_argument(
+        "--dump-context",
+        dest="dump_context",
+        default=None,
+        help="Optional path to write the resolved render context as JSON (for template debugging).",
+    )
+
+    strict_group = parser.add_mutually_exclusive_group()
+    strict_group.add_argument(
+        "--strict-refs",
+        dest="strict_refs",
+        action="store_true",
+        default=True,
+        help="Fail rendering if any schema-declared refs cannot be resolved (default).",
+    )
+    strict_group.add_argument(
+        "--no-strict-refs",
+        dest="strict_refs",
+        action="store_false",
+        help="Render even if refs fail; warnings will be exposed via 'resolve_warnings'.",
+    )
+
+    parser.set_defaults(func=render)

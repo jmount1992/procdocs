@@ -5,7 +5,7 @@ import argparse
 from procdocs import __version__
 from procdocs.core.app import get_context
 from procdocs.cli import config, schema
-from procdocs.cli.document import generate, validate
+from procdocs.cli.document import generate, validate, render
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
     # Register subcommands (they should accept ctx)
     generate.register(subparsers)
     validate.register(subparsers)
-    # render.register(subparsers)
+    render.register(subparsers)
     schema.register(subparsers)
     # templates.register(subparsers)
     config.register(subparsers)

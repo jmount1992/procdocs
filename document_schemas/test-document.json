@@ -17,7 +17,15 @@
                     "fieldname": "tests",
                     "fieldtype": "list",
                     "fields": [
-                        { "fieldname": "fieldtype", "default": "string" }
+                        { 
+                            "fieldname": "filepath",
+                            "fieldtype": "ref",
+                            "must_exist": true,
+                            "extensions": [".yml", ".yaml"],
+                            "ref_kind": "procdocs_document",
+                            "document_type": "test",
+                            "embed_as": "test"
+                        }
                     ]
                 }
             ]

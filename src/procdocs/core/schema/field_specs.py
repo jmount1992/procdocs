@@ -9,7 +9,7 @@ Purpose:
 from __future__ import annotations
 
 from typing import Annotated, Literal, Optional, Union, List, TYPE_CHECKING
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 if TYPE_CHECKING:
     from .field_descriptor import FieldDescriptor
@@ -90,6 +90,38 @@ class RefSpec(BaseModel):
         default=None,
         description="Restrict to these file extensions (e.g., ['.yml', '.yaml']).",
     )
+    ref_kind: Literal["file", "procdocs_document"] = Field(
+        default="file",
+        description="Resolve to a file path only ('file') or load+embed a ProcDocs document ('procdocs_document').",
+    )
+    document_type: Optional[str] = Field(
+        default=None,
+        description="If ref_kind='document', the expected metadata.document_type for the referenced YAML document.",
+    )
+    embed_as: str = Field(
+        default="resolved",
+        description="Key to store embedded payload under (e.g., 'doc', 'test', 'resolved').",
+    )
+
+    @model_validator(mode="after")
+    def _validate_ref_semantics(self) -> "RefSpec":
+        if self.ref_kind == "procdocs_document":
+            if not self.document_type:
+                raise ValueError("RefSpec.document_type is required when ref_kind='procdocs_document'")
+            if not str(self.embed_as).strip():
+                raise ValueError("RefSpec.embed_as must be a non-empty string when ref_kind='procdocs_document'")
+        else:
+            # ref_kind == "file"
+            if self.document_type is not None:
+                raise ValueError("RefSpec.document_type must be omitted when ref_kind='file'")
+            # Optional: disallow embed_as for files to reduce confusion
+            if self.embed_as != "resolved":
+                raise ValueError("RefSpec.embed_as is only applicable when ref_kind='procdocs_document'")
+
+        if self.allow_globs and self.cardinality != "many":
+            raise ValueError("RefSpec.allow_globs requires cardinality='many'")
+
+        return self
 
 
 # --- Discriminated union of all per-type specs --- #
